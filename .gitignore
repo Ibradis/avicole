@@ -45,6 +45,7 @@ staticfiles/
 # Node / Next.js
 node_modules/
 .next/
+.next-codex/
 out/
 npm-debug.log*
 yarn-debug.log*
