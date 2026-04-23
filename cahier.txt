@@ -1,0 +1,4773 @@
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+CAHIER DES CHARGES
+Application SaaS
+Gestion de Ferme Avicole & Multi-Boutiques
+
+Version
+
+4.0 — Architecture financiere unifiee
+
+Date
+
+2025
+
+Statut
+
+Valide
+
+Page 1
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+1. Présentation du Projet
+1.1 Objectif général
+Développer une application web SaaS pour centraliser la gestion d'une exploitation avicole couplée à un
+réseau de boutiques. La solution couvre la production, la santé animale, l'alimentation, les finances, le
+commerce, les charges et le reporting.
+
+1.2 Périmètre fonctionnel
+Module
+
+Description
+
+Ferme avicole
+
+Gestion des lots, production d'oeufs, suivi quotidien
+
+Alimentation
+
+Achats, stocks, consommation journaliere, cout par lot
+
+Sante animale
+
+Vaccins, traitements, mortalite
+
+Veterinaires
+
+Contrats, interventions, paiements
+
+Boutiques
+
+Multi-boutique, stocks et caisses independants
+
+COFO
+
+Achat / vente avec traçabilite caisse source et destination
+
+Banques
+
+Comptes bancaires par entite, soldes calcules
+
+Finance unifiee
+
+Table mouvements_caisse unique pour TOUS les flux d'argent
+
+Charges
+
+Referentiel et declenchement depuis mouvements_caisse
+
+Reporting
+
+Tableaux de bord, rentabilite, tresorerie consolidee
+
+2. Principe Fondateur — Table mouvements_caisse
+Universelle
+2.1 Concept
+TOUS les flux d'argent transitent par une seule table : mouvements_caisse. Caisses physiques et comptes
+bancaires sont reunis dans une seule table portefeuilles. source_id et dest_id pointent tous les deux vers
+portefeuilles.id — le champ type (caisse ou banque) distingue les deux.
+Chaque mouvement est un transfert entre une SOURCE et une DESTINATION :
+•
+•
+
+un portefeuille (caisse ou compte bancaire) — source_type / dest_type = 'portefeuille'
+un tiers exterieur (fournisseur, client, veterinaire...) — source_type / dest_type = 'tiers'
+
+2.2 Structure de la table mouvements_caisse
+Chaque ligne represente un flux complet. source_id et dest_id referent tous les deux a portefeuilles.id,
+caisse ou banque.
+Champ
+
+Page 2
+
+Type
+
+Requis
+
+Description
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique du
+mouvement
+
+source_type
+
+ENUM
+
+Oui
+
+portefeuille / tiers
+
+source_id
+
+INT (FK)
+
+Cond.
+
+ID dans portefeuilles.id
+(null si source = tiers)
+
+dest_type
+
+ENUM
+
+Oui
+
+portefeuille / tiers
+
+dest_id
+
+INT (FK)
+
+Cond.
+
+ID dans portefeuilles.id
+(null si dest = tiers)
+
+montant
+
+DECIMAL(10,2)
+
+Oui
+
+Montant de l'operation en
+GNF
+
+nature
+
+ENUM
+
+Oui
+
+Voir tableau des natures
+(section 2.3)
+
+id_type_charge
+
+INT (FK)
+
+Cond.
+
+Type de charge concerne
+— renseigne uniquement
+si nature = charge
+
+reference_table
+
+VARCHAR(100)
+
+Non
+
+Table metier source (ex:
+ventes_boutique)
+
+reference_id
+
+INT
+
+Non
+
+ID de l'enregistrement
+metier source
+
+description
+
+TEXT
+
+Non
+
+Libelle libre de l'operation
+
+date_mouvement
+
+DATE
+
+Oui
+
+Date comptable de
+l'operation
+
+created_at
+
+TIMESTAMP
+
+Auto
+
+Horodatage de creation
+
+created_by
+
+INT (FK)
+
+Non
+
+Utilisateur ayant saisi
+l'operation
+
+2.3 Tableau complet des natures
+La nature decrit le motif metier du mouvement. Les natures achat et vente sont desormais uniques — le type
+de produit (via produits.type sur les lignes de achats_lignes ou ventes_lignes) permet d'affiner les rapports si
+besoin.
+
+Nature
+
+Source
+type
+
+vente
+
+tiers
+
+achat
+
+portefeuille
+
+achat_cofo
+
+portefeuille
+
+vente_cofo
+
+tiers
+
+Page 3
+
+Dest type
+
+Description
+
+portefeuille
+
+Encaissement d'une vente (oeufs, produits ferme
+ou boutique)
+
+tiers
+
+Paiement d'une facture fournisseur (aliments,
+vaccins, materiel)
+
+tiers
+
+Achat de COFO (lie a cofo_operations)
+
+portefeuille
+
+Vente de COFO (lie a cofo_operations)
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+veterinaire
+
+portefeuille
+
+tiers
+
+Paiement veterinaire (intervention ou contrat)
+
+charge
+
+portefeuille
+
+tiers
+
+transfert_portefeuille
+
+portefeuille
+
+portefeuille
+
+Reglement d'une charge — id_type_charge
+obligatoire
+Depot caisse->banque, retrait, virement, transfert
+entre entites
+
+2.4 Regles de validation
+•
+•
+•
+•
+•
+
+Si source_type = 'portefeuille' alors source_id doit etre un id valide de la table portefeuilles
+Si source_type = 'tiers' alors source_id est NULL (le tiers est identifie via reference_table /
+reference_id)
+Les memes regles s'appliquent symetriquement pour dest_type / dest_id
+Un mouvement ne peut pas avoir source_id = dest_id (transfert vers soi-meme interdit)
+Le champ portefeuilles.type permet de distinguer caisse physique et compte bancaire dans les
+rapports
+
+2.5 Exemples concrets de mouvements
+Operation
+
+source_type /
+id
+
+dest_type / id
+
+nature
+
+Vente oeufs, client paie en liquide
+a la ferme
+
+tiers / NULL
+
+portefeuille /
+ID_caisse_fer
+me
+
+vente_oeufs
+
+Vente oeufs, client vire sur
+compte BOA ferme
+
+tiers / NULL
+
+portefeuille /
+ID_boa_ferme
+
+vente_oeufs
+
+Achat COFO, paye depuis caisse
+ferme principale
+
+portefeuille /
+ID_caisse_fer
+me
+
+tiers / NULL
+
+achat_cofo
+
+Vente COFO, client paie en
+liquide a la ferme
+
+tiers / NULL
+
+portefeuille /
+ID_caisse_fer
+me
+
+vente_cofo
+
+Paiement veterinaire par virement
+Ecobank ferme
+
+portefeuille /
+ID_eco_ferme
+
+tiers / NULL
+
+veterinaire
+
+Depot : caisse boutique 1 ->
+compte BOA boutique 1
+
+portefeuille /
+ID_caisse_b1
+
+portefeuille /
+ID_boa_b1
+
+transfert_portefeuille
+
+Retrait : BOA ferme -> caisse
+ferme
+
+portefeuille /
+ID_boa_ferme
+
+portefeuille /
+ID_caisse_fer
+me
+
+transfert_portefeuille
+
+Charge loyer boutique 2, payee
+en especes
+
+portefeuille /
+ID_caisse_b2
+
+tiers / NULL
+
+charge
+
+Virement BOA -> Ecobank
+(meme ferme)
+
+portefeuille /
+ID_boa_ferme
+
+portefeuille /
+ID_eco_ferme
+
+transfert_portefeuille
+
+Page 4
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+3. Table Portefeuilles — Unification Caisses et Banques
+3.1 Principe
+Les anciennes tables caisses et comptes_bancaires sont fusionnees en une seule table portefeuilles. Un
+portefeuille est defini par son type (caisse ou banque) et son entite proprietaire. Cette fusion simplifie le
+schema : source_id et dest_id dans mouvements_caisse pointent vers la meme table quelle que soit la
+nature du portefeuille.
+Avant (2 tables)
+
+Apres (1 table)
+
+Avantage
+
+caisses + comptes_bancaires
+
+portefeuilles
+
+Une seule FK dans
+mouvements_caisse
+
+source_type = caisse OU banque
+
+source_type = portefeuille
+
+ENUM simplifie a 2 valeurs
+
+Jointures sur 2 tables differentes
+
+Jointure unique sur portefeuilles
+
+Requetes plus simples et
+performantes
+
+3.2 Structure de la table portefeuilles
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique
+
+nom
+
+VARCHAR(150)
+
+Oui
+
+Libelle (ex: Caisse ferme,
+BOA boutique 1)
+
+type
+
+ENUM
+
+Oui
+
+caisse / banque —
+distingue les deux
+natures
+
+id_entite
+
+INT
+
+Oui
+
+Ferme ou boutique
+proprietaire
+
+type_entite
+
+ENUM
+
+Oui
+
+ferme / boutique
+
+solde_init
+
+DECIMAL(10,2)
+
+Oui
+
+Solde a l'ouverture
+(especes en caisse ou
+solde bancaire initial)
+
+solde_actuel
+
+DECIMAL(10,2)
+
+Calc.
+
+Recalcule
+automatiquement depuis
+mouvements_caisse
+
+nom_banque
+
+VARCHAR(150)
+
+Cond.
+
+Nom de la banque
+(obligatoire si type =
+banque)
+
+numero_compte
+
+VARCHAR(80)
+
+Cond.
+
+Numero de compte
+(obligatoire si type =
+banque)
+
+titulaire
+
+VARCHAR(150)
+
+Cond.
+
+Titulaire du compte (si
+type = banque)
+
+devise
+
+VARCHAR(10)
+
+Non
+
+GNF / USD / EUR (defaut
+: GNF)
+
+Page 5
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+statut
+
+ENUM
+
+Oui
+
+actif / inactif / cloture
+
+notes
+
+TEXT
+
+Non
+
+Observations
+
+Champs conditionnels : nom_banque, numero_compte et titulaire ne s'appliquent qu'aux portefeuilles de
+type 'banque'. Pour une caisse, ces champs restent NULL.
+
+3.3 Calcul du solde actuel
+Le solde de n'importe quel portefeuille (caisse ou banque) se calcule de la meme facon depuis
+mouvements_caisse :
+Composante
+
+Formule SQL
+
+Solde de base
+
+portefeuilles.solde_init
+
++ Entrees
+
+SUM(montant) WHERE dest_type='portefeuille' AND
+dest_id = ID
+
+- Sorties
+
+SUM(montant) WHERE source_type='portefeuille'
+AND source_id = ID
+
+= Solde actuel
+
+solde_init + entrees - sorties
+
+3.4 Vue tresorerie consolidee
+Le tableau de bord affiche tous les portefeuilles en une seule vue, trie par entite. Le filtre sur
+portefeuilles.type permet d'isoler caisses ou banques si besoin.
+Portefeuille
+
+type
+
+Entite
+
+Solde calcule depuis
+
+Caisse principale ferme
+
+caisse
+
+Ferme
+
+mouvements_caisse via dest_id /
+source_id
+
+Caisse boutique 1
+
+caisse
+
+Boutique 1
+
+mouvements_caisse via dest_id /
+source_id
+
+Compte BOA ferme
+
+banque
+
+Ferme
+
+mouvements_caisse via dest_id /
+source_id
+
+Compte Ecobank ferme
+
+banque
+
+Ferme
+
+mouvements_caisse via dest_id /
+source_id
+
+Compte UBA boutique 2
+
+banque
+
+Boutique 2
+
+mouvements_caisse via dest_id /
+source_id
+
+4. Module COFO
+4.1 Definition
+Le COFO est un produit naturel issu des arbres, utilise pour proteger les poules contre la fraicheur. Il peut
+etre collecte, mis en sac et revendu. Il n'est pas gere en stock interne : seuls les flux financiers sont suivis.
+
+Page 6
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+4.2 Regles metier COFO
+Regle
+
+Valeur
+
+Gestion stock interne
+
+NON
+
+Suivi financier (achat/vente)
+
+OUI
+
+Caisse source de l'achat tracee
+
+OUI - champ source_id obligatoire
+
+Caisse destination de la vente tracee
+
+OUI - champ dest_id obligatoire
+
+Paiement possible par banque
+
+OUI - source_type = banque
+
+4.3 Table cofo_operations
+Cette table enregistre les details metier de chaque operation COFO. Le flux financier lui-meme est
+enregistre dans mouvements_caisse avec une reference vers cette table.
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique
+
+type_operation
+
+ENUM
+
+Oui
+
+achat / vente
+
+montant
+
+DECIMAL(10,2)
+
+Oui
+
+Montant de l'operation
+
+fournisseur
+
+VARCHAR(150)
+
+Non
+
+Nom fournisseur (si
+achat)
+
+client
+
+VARCHAR(150)
+
+Non
+
+Nom client (si vente)
+
+quantite_sacs
+
+INT
+
+Non
+
+Nombre de sacs
+(indicatif)
+
+date_operation
+
+DATE
+
+Oui
+
+Date de l'operation
+
+notes
+
+TEXT
+
+Non
+
+Observations
+
+4.4 Flux financier COFO dans mouvements_caisse
+Scenario
+
+source_type /
+id
+
+dest_type / id
+
+nature
+
+Achat COFO, paye en
+liquide depuis caisse ferme
+A
+
+caisse /
+ID_ferme_A
+
+tiers / NULL
+
+achat_cofo
+
+Achat COFO, paye par
+virement compte BOA
+ferme
+
+banque /
+ID_boa
+
+tiers / NULL
+
+achat_cofo_virement
+
+Vente COFO, client paie en
+liquide (recu en caisse
+ferme A)
+
+tiers / NULL
+
+caisse /
+ID_ferme_A
+
+vente_cofo
+
+Vente COFO, client vire sur
+
+tiers / NULL
+
+banque /
+
+vente_cofo_virement
+
+Page 7
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+compte Ecobank ferme
+
+ID_eco
+
+4.5 KPIs COFO
+•
+•
+•
+•
+
+Total investi = SUM(montant) WHERE nature IN ('achat_cofo', 'achat_cofo_virement')
+Total encaisse = SUM(montant) WHERE nature IN ('vente_cofo', 'vente_cofo_virement')
+Benefice net COFO = Total encaisse - Total investi
+Detail par caisse source : quel portefeuille finance le plus les achats
+
+5. Referentiels Transversaux
+Ces trois tables sont partagees par plusieurs modules. Elles constituent le socle de donnees commun utilise
+par la ferme, les boutiques, l'alimentation, la sante et les achats.
+
+5.1 Table produits
+La table produits regroupe tous les articles geres dans l'application : oeufs, aliments, vaccins, medicaments
+et materiel. Le champ type permet de filtrer par categorie dans chaque module.
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique
+
+libelle
+
+VARCHAR(200)
+
+Oui
+
+Nom du produit (ex: Maïs
+concasse, Vaccin
+Newcastle)
+
+type
+
+ENUM
+
+Oui
+
+oeuf / aliment / vaccin /
+medicament / materiel
+
+unite
+
+VARCHAR(30)
+
+Oui
+
+Unite de mesure : piece /
+kg / sac / litre / boite
+
+prix_unitaire
+
+DECIMAL(10,2)
+
+Non
+
+Prix de reference (peut
+etre ecrase a l'achat)
+
+prix_vente
+
+DECIMAL(10,2)
+
+Non
+
+Prix de vente conseille en
+boutique ou a la ferme
+
+description
+
+TEXT
+
+Non
+
+Description libre du
+produit
+
+actif
+
+BOOLEAN
+
+Oui
+
+Produit actif ou archive
+
+created_at
+
+TIMESTAMP
+
+Auto
+
+Date de creation
+
+Valeurs du champ type et modules utilisant le produit
+type
+oeuf
+
+Page 8
+
+Exemple de produit
+Oeuf frais (plateau 30)
+
+Modules utilisant ce produit
+stocks, ventes (ferme et boutiques),
+productions_oeufs, transferts_stock
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+aliment
+
+Mais concasse, Tourteau
+soja
+
+stocks, achats / achats_lignes,
+consommations_aliments
+
+vaccin
+
+Vaccin Newcastle,
+Gumboro
+
+stocks, achats / achats_lignes (avec num_lot),
+vaccinations
+
+medicament
+
+Antibiotique, Vermifuge
+
+stocks, achats / achats_lignes (avec num_lot),
+traitements
+
+materiel
+
+Mangeoire, Abreuvoir,
+Filet
+
+stocks (suivi materiel), achats / achats_lignes
+
+5.2 Table partenaires (fournisseurs et clients unifies)
+Les anciens referentiels fournisseurs et clients sont fusionnes en une seule table partenaires. Un meme tiers
+peut etre a la fois fournisseur et client. Le solde de chaque partenaire (creance ou dette) est calcule en
+temps reel depuis les tables achats, ventes et paiements_partenaires — sans duplication de donnee.
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique
+
+nom
+
+VARCHAR(200)
+
+Oui
+
+Nom complet, raison
+sociale ou surnom
+
+role
+
+ENUM
+
+Oui
+
+fournisseur / client /
+les_deux
+
+type_tiers
+
+ENUM
+
+Non
+
+particulier /
+professionnel / revendeur
+
+telephone
+
+VARCHAR(30)
+
+Non
+
+Numero de contact
+principal
+
+email
+
+VARCHAR(150)
+
+Non
+
+Adresse email
+
+adresse
+
+TEXT
+
+Non
+
+Adresse physique ou de
+livraison
+
+categorie
+
+ENUM
+
+Non
+
+aliment / sante /
+materiel / cofo / oeufs /
+divers
+
+limite_credit
+
+DECIMAL(10,2)
+
+Non
+
+Plafond d'encours
+autorise (0 = paiement
+comptant obligatoire)
+
+notes
+
+TEXT
+
+Non
+
+Conditions
+commerciales,
+observations
+
+actif
+
+BOOLEAN
+
+Oui
+
+Partenaire actif ou
+archive
+
+created_at
+
+TIMESTAMP
+
+Auto
+
+Date de creation de la
+fiche
+
+Page 9
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+5.3 Table paiements_partenaires
+Cette table enregistre tous les reglements effectues entre l'entreprise et un partenaire — qu'il s'agisse de
+payer une dette fournisseur ou d'encaisser une creance client. Elle est la source unique pour calculer le
+solde de chaque partenaire.
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant du paiement
+
+id_partenaire
+
+INT (FK)
+
+Oui
+
+Partenaire concerne
+
+sens
+
+ENUM
+
+Oui
+
+encaissement /
+decaissement
+
+montant
+
+DECIMAL(10,2)
+
+Oui
+
+Montant du reglement
+
+id_portefeuille
+
+INT (FK)
+
+Oui
+
+Portefeuille utilise (caisse
+ou banque)
+
+reference_table
+
+VARCHAR(100)
+
+Non
+
+Table liee : achats ou
+ventes
+
+reference_id
+
+INT
+
+Non
+
+ID de la facture ou vente
+concernee
+
+date_paiement
+
+DATE
+
+Oui
+
+Date du reglement
+
+notes
+
+TEXT
+
+Non
+
+Observations (numero
+cheque, reference
+virement...)
+
+created_by
+
+INT (FK)
+
+Non
+
+Utilisateur ayant saisi le
+paiement
+
+Chaque enregistrement dans paiements_partenaires genere simultanement un mouvement dans
+mouvements_caisse (nature: vente ou achat selon le sens).
+
+5.4 Calcul du solde partenaire
+Le solde de chaque partenaire se calcule depuis les trois tables achats, ventes et paiements_partenaires.
+Aucune colonne de solde n'est stockee — elle est toujours calculee a la demande pour garantir la
+coherence.
+
+Solde fournisseur (dettes)
+Composante
+
+Formule
+
+Total factures recues
+
+SUM(achats.montant_total) WHERE id_partenaire = X
+
+- Total paiements effectues
+
+SUM(paiements_partenaires.montant) WHERE
+id_partenaire = X AND sens = 'decaissement'
+
+= Dette restante (solde fournisseur)
+
+Positif = on doit de l'argent au fournisseur
+
+Page 10
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+Solde client (creances)
+Composante
+
+Formule
+
+Total ventes emises
+
+SUM(ventes.montant_total) WHERE id_partenaire = X
+
+- Total encaissements recus
+
+SUM(paiements_partenaires.montant) WHERE
+id_partenaire = X AND sens = 'encaissement'
+
+= Creance restante (solde client)
+
+Positif = le client nous doit de l'argent
+
+Exemple : partenaire role = 'les_deux'
+Pour un partenaire qui est a la fois fournisseur et client, les deux soldes coexistent independamment. Les
+rapports les affichent separement : dette fournisseur d'un cote, creance client de l'autre.
+
+5.5 Suivi par facture
+En plus du solde global, chaque facture achat ou vente a son propre statut de paiement recalcule :
+statut_paiement
+
+Condition
+
+non_paye
+
+Aucun paiement lie a cette facture dans paiements_partenaires
+
+partiel
+
+SUM(paiements lies) > 0 ET < montant_total de la facture
+
+paye
+
+SUM(paiements lies) >= montant_total de la facture
+
+5.6 KPIs partenaires
+•
+•
+•
+•
+•
+•
+
+Encours fournisseurs : SUM des dettes restantes sur tous les fournisseurs actifs
+Encours clients : SUM des creances restantes sur tous les clients actifs
+Factures en retard : achats ou ventes non_paye avec date_achat / date_vente > X jours
+Top debiteurs : clients avec la plus grande creance en attente
+Top creanciers : fournisseurs avec la plus grande dette en attente
+Alerte limite credit depassee : encours client > limite_credit definie sur la fiche partenaire
+
+Valeurs du champ role et usage dans les tables metier
+role
+
+Apparait dans
+
+Exemple
+
+fournisseur
+
+achats (id_partenaire),
+paiements_partenaires (sens:
+decaissement)
+
+Grossiste mais, pharmacie veterinaire
+
+client
+
+ventes (id_partenaire),
+paiements_partenaires (sens:
+encaissement)
+
+Revendeur oeufs, particulier boutique
+
+les_deux
+
+Toutes les tables ci-dessus —
+soldes fournisseur et client calcules
+separement
+
+Cooperatif vendant aliments ET achetant
+oeufs
+
+Page 11
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+6. Module Alimentation
+6.1 Principe
+Ce module gere le cycle complet de la nourriture des poules : achat fournisseur, entree en stock,
+consommation quotidienne par lot. Les achats d'aliments utilisent les tables unifiees achats et achats_lignes
+(section 6.2), partagees avec tous les autres types d'achats (vaccins, medicaments, materiel).
+
+6.2 Tables achats et achats_lignes (communes a tous les achats)
+Un seul couple de tables gere toutes les factures fournisseurs, qu'il s'agisse d'aliments, de vaccins, de
+medicaments ou de materiel. La distinction se fait via produits.type sur chaque ligne. Ce design evite la
+duplication et centralise toute la logique d'achat en un seul endroit.
+Table achats — en-tete de facture :
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique de la
+facture
+
+id_partenaire
+
+INT (FK)
+
+Non
+
+Fournisseur (table
+partenaires, role =
+fournisseur)
+
+reference
+
+VARCHAR(100)
+
+Non
+
+Numero de facture ou
+bon de livraison
+fournisseur
+
+date_achat
+
+DATE
+
+Oui
+
+Date de reception de la
+facture
+
+montant_total
+
+DECIMAL(10,2)
+
+Calc.
+
+Somme automatique de
+toutes les lignes
+
+montant_paye
+
+DECIMAL(10,2)
+
+Non
+
+Montant regle a ce jour
+(paiements partiels
+possibles)
+
+statut_paiement
+
+ENUM
+
+Oui
+
+non_paye / partiel / paye
+
+notes
+
+TEXT
+
+Non
+
+Observations generales
+sur la facture
+
+Requis
+
+Description
+
+Table achats_lignes — detail par produit :
+Champ
+
+Type
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant de la ligne
+
+id_achat
+
+INT (FK)
+
+Oui
+
+Facture parent
+(achats.id)
+
+id_produit
+
+INT (FK)
+
+Oui
+
+Produit achete — tous
+types : aliment, vaccin,
+medicament, materiel
+
+quantite
+
+DECIMAL(10,2)
+
+Oui
+
+Quantite livree pour ce
+produit
+
+Page 12
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+prix_unitaire
+
+DECIMAL(10,2)
+
+Oui
+
+Prix unitaire negocie
+
+montant_ligne
+
+DECIMAL(10,2)
+
+Calc.
+
+quantite x prix_unitaire
+
+num_lot
+
+VARCHAR(100)
+
+Non
+
+Numero de lot (vaccin ou
+medicament uniquement)
+
+date_peremption
+
+DATE
+
+Non
+
+Date de peremption
+(vaccin ou medicament
+uniquement)
+
+notes
+
+TEXT
+
+Non
+
+Observations specifiques
+a cette ligne
+
+Exemple : une seule facture mixte aliments + vaccins
+id_achat
+
+Produit (produits.type)
+
+Qte
+
+Prix unit.
+
+Montant
+
+Num lot
+
+FA-007
+
+Maïs concasse (aliment)
+
+500 kg
+
+2 800 GNF
+
+1 400 000
+
+—
+
+FA-007
+
+Tourteau soja (aliment)
+
+200 kg
+
+4 500 GNF
+
+900 000
+
+—
+
+FA-007
+
+Vaccin Newcastle (vaccin)
+
+100 doses
+
+8 500 GNF
+
+850 000
+
+LOT-2024-18
+
+FA-007
+
+Antibiotique Tylosine
+(medicament)
+
+10 boites
+
+45 000 GNF
+
+450 000
+
+—
+
+Impact a la validation : chaque ligne genere une entree dans stocks (ferme) pour son produit. Un seul
+mouvement mouvements_caisse est cree pour le montant_total (nature: achat, reference_table = 'achats',
+reference_id = id de la facture).
+
+6.3 Mise a jour du stock
+Tous les produits achetes (aliments, vaccins, medicaments, materiel) alimentent la table centrale stocks
+avec id_entite = ferme. Le champ produits.type permet de filtrer par categorie dans chaque module.
+
+6.4 Table consommations_aliments
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_produit
+
+INT (FK)
+
+Oui
+
+Aliment consomme
+(produits.type = aliment)
+
+id_lot
+
+INT (FK)
+
+Oui
+
+Lot de poules concerne
+
+quantite
+
+DECIMAL(10,2)
+
+Oui
+
+Quantite consommee
+
+date_consommation
+
+DATE
+
+Oui
+
+Date de saisie
+
+notes
+
+TEXT
+
+Non
+
+Observations
+
+Impact : stock aliment diminue automatiquement. Pas de mouvement de caisse (la depense a ete
+enregistree a la reception de la facture).
+Page 13
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+6.5 KPIs alimentation
+•
+•
+•
+•
+
+Consommation par jour / par lot
+Cout alimentation = SUM(montant_ligne) WHERE produits.type = 'aliment' sur la periode
+Cout par oeuf = cout alimentation / nb oeufs produits
+Alerte stock bas : quantite < seuil_alerte dans stocks
+
+7. Module Ferme Avicole
+7.1 Table lots
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant du lot
+
+nom_lot
+
+VARCHAR(100)
+
+Oui
+
+Libelle (ex: Lot A-2025)
+
+date_entree
+
+DATE
+
+Oui
+
+Date d'entree en ferme
+
+nb_poules
+
+INT
+
+Oui
+
+Effectif initial
+
+race
+
+VARCHAR(100)
+
+Non
+
+Race des poules
+
+statut
+
+ENUM
+
+Oui
+
+actif / archive / vendu
+
+notes
+
+TEXT
+
+Non
+
+Observations
+
+7.2 Table productions_oeufs
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_lot
+
+INT (FK)
+
+Oui
+
+Lot producteur
+
+date_production
+
+DATE
+
+Oui
+
+Date de collecte
+
+quantite_oeufs
+
+INT
+
+Oui
+
+Oeufs collectes nets
+
+oeufs_castes
+
+INT
+
+Non
+
+Oeufs inutilisables
+
+notes
+
+TEXT
+
+Non
+
+Observations
+
+Impact : stock oeufs incremente automatiquement.
+
+7.3 Tables ventes et ventes_lignes (communes a toutes les ventes)
+Comme pour les achats, ventes_ferme et ventes_boutique partagent exactement la meme structure — un
+client, des produits, un paiement dans mouvements_caisse. On les fusionne en deux tables unifiees ventes
+(en-tete) et ventes_lignes (detail par produit). La distinction ferme / boutique se fait via le champ
+source_entite.
+Page 14
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+Table ventes — en-tete de vente :
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique de la
+vente
+
+source_type
+
+ENUM
+
+Oui
+
+ferme / boutique —
+origine de la vente
+
+source_id
+
+INT
+
+Oui
+
+ID de la ferme ou de la
+boutique vendeuse
+
+id_boutique_acheteur
+
+INT (FK)
+
+Cond.
+
+ID boutique si vente
+ferme->boutique, NULL
+sinon
+
+id_partenaire
+
+INT (FK)
+
+Non
+
+Client externe (table
+partenaires, optionnel)
+
+client_nom
+
+VARCHAR(150)
+
+Non
+
+Nom client libre si pas de
+fiche partenaire
+
+date_vente
+
+DATE
+
+Oui
+
+Date de la vente
+
+montant_total
+
+DECIMAL(10,2)
+
+Calc.
+
+Somme automatique de
+toutes les lignes
+
+notes
+
+TEXT
+
+Non
+
+Observations
+
+Table ventes_lignes — detail par produit :
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant de la ligne
+
+id_vente
+
+INT (FK)
+
+Oui
+
+Vente parent (ventes.id)
+
+id_produit
+
+INT (FK)
+
+Oui
+
+Produit vendu (oeufs,
+aliment, autre)
+
+quantite
+
+DECIMAL(10,2)
+
+Oui
+
+Quantite vendue
+
+prix_unitaire
+
+DECIMAL(10,2)
+
+Oui
+
+Prix de vente unitaire
+
+montant_ligne
+
+DECIMAL(10,2)
+
+Calc.
+
+quantite x prix_unitaire
+
+notes
+
+TEXT
+
+Non
+
+Observations sur cette
+ligne
+
+Impact : chaque ligne genere une sortie dans stocks (ferme ou boutique selon source_type/source_id). Un
+seul mouvement mouvements_caisse est cree pour le montant_total (nature: vente, source=tiers,
+dest=portefeuille de l'entite vendeuse).
+
+Page 15
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+8. Module Sante Animale
+8.1 Table vaccinations
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_lot
+
+INT (FK)
+
+Oui
+
+Lot vaccine
+
+vaccin
+
+VARCHAR(150)
+
+Oui
+
+Nom du vaccin
+
+date_vaccination
+
+DATE
+
+Oui
+
+Date d'administration
+
+prochaine_dose
+
+DATE
+
+Non
+
+Rappel prevu
+
+cout
+
+DECIMAL(10,2)
+
+Non
+
+Cout de l'acte
+
+id_veterinaire
+
+INT (FK)
+
+Non
+
+Veterinaire intervenant
+
+Requis
+
+Description
+
+8.2 Table traitements
+Champ
+
+Type
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_lot
+
+INT (FK)
+
+Oui
+
+Lot traite
+
+description
+
+TEXT
+
+Oui
+
+Nature du traitement
+
+medicament
+
+VARCHAR(150)
+
+Non
+
+Produit utilise
+
+date_debut
+
+DATE
+
+Oui
+
+Debut traitement
+
+date_fin
+
+DATE
+
+Non
+
+Fin prevue
+
+cout
+
+DECIMAL(10,2)
+
+Non
+
+Cout total
+
+id_veterinaire
+
+INT (FK)
+
+Non
+
+Veterinaire
+
+8.3 Table mortalites
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_lot
+
+INT (FK)
+
+Oui
+
+Lot concerne
+
+date_mortalite
+
+DATE
+
+Oui
+
+Date du constat
+
+nombre
+
+INT
+
+Oui
+
+Nombre de deces
+
+cause
+
+VARCHAR(200)
+
+Non
+
+Cause identifiee
+
+Page 16
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+notes
+
+TEXT
+
+Non
+
+Observations
+
+Impact : effectif du lot recalcule apres chaque enregistrement.
+
+8.4 Achats de vaccins, medicaments et materiel
+Les achats de vaccins, medicaments et materiel utilisent exactement les memes tables achats et
+achats_lignes documentees en section 6.2. Aucune table supplementaire n'est necessaire — la distinction
+se fait par produits.type sur chaque ligne ('vaccin', 'medicament' ou 'materiel').
+produits.type
+
+Champs specifiques utilises dans achats_lignes
+
+aliment
+
+quantite, prix_unitaire — num_lot et date_peremption non utilises
+
+vaccin
+
+quantite, prix_unitaire, num_lot (obligatoire), date_peremption
+(obligatoire)
+
+medicament
+
+quantite, prix_unitaire, num_lot (recommande), date_peremption
+(recommandee)
+
+materiel
+
+quantite, prix_unitaire — num_lot et date_peremption non utilises
+
+Le mouvement mouvements_caisse cree a la validation de la facture a la nature 'achat' pour tous les types
+de produits. Les rapports filtrent ensuite par produits.type pour distinguer les depenses par categorie.
+
+9. Module Veterinaires
+9.1 Table veterinaires
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+nom
+
+VARCHAR(150)
+
+Oui
+
+Nom complet
+
+telephone
+
+VARCHAR(30)
+
+Non
+
+Contact
+
+email
+
+VARCHAR(150)
+
+Non
+
+Email
+
+specialite
+
+VARCHAR(100)
+
+Non
+
+Domaine
+
+type_contrat
+
+ENUM
+
+Oui
+
+avec_contrat /
+sans_contrat
+
+9.2 Table contrats_veterinaires
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_veterinaire
+
+INT (FK)
+
+Oui
+
+Veterinaire concerne
+
+Page 17
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+date_debut
+
+DATE
+
+Oui
+
+Debut du contrat
+
+date_fin
+
+DATE
+
+Oui
+
+Fin du contrat
+
+montant_global
+
+DECIMAL(10,2)
+
+Oui
+
+Montant total du contrat
+
+montant_paye
+
+DECIMAL(10,2)
+
+Calc.
+
+Somme des paiements
+via mouvements_caisse
+
+solde_restant
+
+DECIMAL(10,2)
+
+Calc.
+
+montant_global montant_paye
+
+statut
+
+ENUM
+
+Oui
+
+actif / cloture / expire
+
+9.3 Table interventions_veterinaires
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_veterinaire
+
+INT (FK)
+
+Oui
+
+Veterinaire
+
+id_contrat
+
+INT (FK)
+
+Non
+
+Contrat associe (si
+existant)
+
+id_lot
+
+INT (FK)
+
+Non
+
+Lot concerne
+
+date_intervention
+
+DATE
+
+Oui
+
+Date de visite
+
+description
+
+TEXT
+
+Oui
+
+Detail de l'intervention
+
+cout
+
+DECIMAL(10,2)
+
+Oui
+
+Montant facture
+
+paye
+
+BOOLEAN
+
+Oui
+
+Statut paiement
+
+9.4 Paiement veterinaire dans mouvements_caisse
+Mode paiement
+
+source_type / dest_type
+
+nature
+
+Paiement en especes depuis
+caisse ferme
+
+caisse ID_ferme -> tiers
+
+veterinaire
+
+Paiement par virement bancaire
+
+banque ID_compte -> tiers
+
+veterinaire_virement
+
+10. Module Boutiques
+10.1 Table boutiques
+Champ
+id
+
+Page 18
+
+Type
+INT (PK)
+
+Requis
+Oui
+
+Description
+Identifiant
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+nom
+
+VARCHAR(150)
+
+Oui
+
+Nom de la boutique
+
+adresse
+
+TEXT
+
+Non
+
+Localisation
+
+responsable
+
+VARCHAR(150)
+
+Non
+
+Nom du gerant
+
+telephone
+
+VARCHAR(30)
+
+Non
+
+Contact
+
+statut
+
+ENUM
+
+Oui
+
+actif / inactif
+
+10.2 Vente de la ferme vers une boutique
+La ferme vend ses produits (oeufs principalement) aux boutiques. Cette operation n'est pas un simple
+transfert interne gratuit — la boutique paie la ferme a un prix convenu. Elle est donc materialisee comme
+une vente a part entiere via les tables ventes et ventes_lignes, avec un champ specifique
+id_boutique_acheteur pour identifier que le client est une boutique interne.
+
+Champs de ventes pour une vente ferme -> boutique
+Champ
+
+Valeur
+
+source_type
+
+'ferme' — c'est la ferme qui vend
+
+source_id
+
+ID de la ferme
+
+id_boutique_acheteur
+
+ID de la boutique qui achete — champ FK ajoute dans ventes
+
+id_partenaire
+
+NULL (la boutique n'est pas un partenaire externe)
+
+ventes_lignes
+
+1 ligne par produit : id_produit, quantite, prix_unitaire
+
+Ce champ id_boutique_acheteur est ajoute a la table ventes. Il est NULL pour toutes les ventes a des clients
+externes, et renseigne uniquement pour les ventes internes ferme -> boutique.
+
+Double impact automatique
+Impact
+
+Detail
+
+Stock ferme
+
+Diminue de la quantite vendue (sortie mouvements_stock)
+
+Stock boutique
+
+Augmente de la quantite recue (entree mouvements_stock)
+
+Caisse / banque ferme
+
+Encaissement : mouvement mouvements_caisse (tiers -> portefeuille
+ferme)
+
+Caisse boutique
+
+Paiement : mouvement mouvements_caisse (portefeuille boutique ->
+tiers)
+
+En pratique, les deux mouvements mouvements_caisse sont crees simultanement lors de la validation de la
+vente : un mouvement d'encaissement pour la ferme et un mouvement de paiement pour la boutique, lies
+par le meme reference_id = id de la vente.
+
+Page 19
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+Distinction des trois types de ventes dans la table ventes
+Type de vente
+
+source_type
+
+id_boutique_acheteur
+
+Ferme vend a un client externe
+
+ferme
+
+NULL — client identifie via id_partenaire ou client_nom
+
+Ferme vend a une boutique
+interne
+
+ferme
+
+ID de la boutique acheteur — stock boutique mis a jour
+
+Boutique vend a un client
+externe
+
+boutique
+
+NULL — client identifie via id_partenaire ou client_nom
+
+10.3 Ventes en boutique vers clients externes
+Les ventes de la boutique a ses clients utilisent les memes tables ventes et ventes_lignes avec source_type
+= 'boutique' et source_id = ID de la boutique. id_boutique_acheteur est NULL.
+Champ
+
+Valeur pour une vente boutique -> client
+
+source_type
+
+'boutique'
+
+source_id
+
+ID de la boutique vendeuse
+
+id_boutique_acheteur
+
+NULL
+
+id_partenaire / client_nom
+
+Client si connu, sinon champ libre
+
+Impact : sortie stocks boutique + un seul mouvement mouvements_caisse (portefeuille boutique credite).
+
+11. Module Stocks
+11.1 Perimetre des stocks
+Type de produit
+
+Gere en stock
+
+Note
+
+Oeufs
+
+OUI
+
+Ferme + chaque boutique
+
+Aliments
+
+OUI
+
+Ferme uniquement
+
+Vaccins/Medicaments
+
+OUI
+
+Ferme
+
+Materiel
+
+OUI
+
+Ferme
+
+COFO
+
+NON
+
+Suivi financier uniquement via mouvements_caisse
+
+11.2 Table stocks
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_produit
+
+INT (FK)
+
+Oui
+
+Produit concerne
+
+id_entite
+
+INT
+
+Oui
+
+Ferme ou boutique
+
+Page 20
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+type_entite
+
+ENUM
+
+Oui
+
+ferme / boutique
+
+quantite
+
+DECIMAL(10,2)
+
+Oui
+
+Quantite disponible
+
+seuil_alerte
+
+DECIMAL(10,2)
+
+Non
+
+Seuil minimum avant
+alerte
+
+mise_a_jour
+
+TIMESTAMP
+
+Auto
+
+Derniere mise a jour
+
+Requis
+
+Description
+
+11.3 Table mouvements_stock
+Champ
+
+Type
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_produit
+
+INT (FK)
+
+Oui
+
+Produit
+
+id_entite_source
+
+INT
+
+Cond.
+
+Entite source (ferme ou
+boutique)
+
+id_entite_dest
+
+INT
+
+Cond.
+
+Entite destination
+
+type_mouvement
+
+ENUM
+
+Oui
+
+entree / sortie / transfert
+
+nature
+
+VARCHAR(100)
+
+Oui
+
+production / vente /
+transfert /
+consommation...
+
+quantite
+
+DECIMAL(10,2)
+
+Oui
+
+Quantite deplacee
+
+date_mouvement
+
+DATE
+
+Oui
+
+Date
+
+reference_id
+
+INT
+
+Non
+
+ID de l'operation source
+
+reference_table
+
+VARCHAR(100)
+
+Non
+
+Table source
+
+12. Module Charges
+12.1 Principe — Une seule table, pas deux
+La table charges est supprimee. Enregistrer une depense de type charge signifie simplement creer un
+mouvement dans mouvements_caisse avec nature = 'charge' et id_type_charge renseigne. Le type de
+charge porte le previsionnel et la categorisation — le mouvement lui-meme porte le montant reel, la date et
+le portefeuille debite. Tout rapport previsionnel vs reel se calcule directement depuis ces deux tables.
+Avant (2 tables)
+
+Apres (1 table + 1 champ)
+
+types_charges + charges
+
+types_charges + champ id_type_charge dans
+mouvements_caisse
+
+Jointure sur 2 tables pour obtenir un rapport
+
+Jointure directe mouvements_caisse -> types_charges
+
+charges.montant_reel duplique
+mouvements_caisse.montant
+
+mouvements_caisse.montant est la source unique du
+montant reel
+
+Page 21
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+12.2 Table types_charges (referentiel)
+Chaque type de charge definit une categorie de depense recurrente ou previsible. Il sert de libelle, de budget
+previsionnel de reference et de filtre pour les rapports.
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+libelle
+
+VARCHAR(150)
+
+Oui
+
+Nom de la charge (ex:
+Loyer ferme, Electricite
+boutique)
+
+categorie
+
+ENUM
+
+Oui
+
+fixe / variable /
+exceptionnelle
+
+type_entite
+
+ENUM
+
+Oui
+
+ferme / boutique / toutes
+
+periodicite
+
+ENUM
+
+Non
+
+mensuelle / trimestrielle /
+annuelle / ponctuelle
+
+montant_prev
+
+DECIMAL(10,2)
+
+Non
+
+Montant previsionnel de
+reference pour les
+rapports
+
+actif
+
+BOOLEAN
+
+Oui
+
+Type actif ou archive
+
+notes
+
+TEXT
+
+Non
+
+Description
+
+Exemples de types de charges :
+Libelle
+
+Categorie
+
+Periodicite
+
+Entite
+
+Loyer locaux ferme
+
+fixe
+
+mensuelle
+
+ferme
+
+Electricite ferme
+
+variable
+
+mensuelle
+
+ferme
+
+Eau ferme
+
+variable
+
+mensuelle
+
+ferme
+
+Salaires employes ferme
+
+fixe
+
+mensuelle
+
+ferme
+
+Transport / livraison
+
+variable
+
+ponctuelle
+
+toutes
+
+Entretien materiel
+
+variable
+
+ponctuelle
+
+ferme
+
+Loyer boutique
+
+fixe
+
+mensuelle
+
+boutique
+
+Electricite boutique
+
+variable
+
+mensuelle
+
+boutique
+
+Frais bancaires
+
+fixe
+
+mensuelle
+
+toutes
+
+Assurance
+
+fixe
+
+annuelle
+
+toutes
+
+12.3 Comment enregistrer une charge
+Pour payer le loyer de la ferme en especes, on cree un seul enregistrement dans mouvements_caisse :
+Page 22
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+Champ
+
+Type
+
+Requis
+
+Description
+
+source_type
+
+portefeuille
+
+—
+
+Le portefeuille qui paie
+
+source_id
+
+ID caisse ferme
+
+—
+
+La caisse ferme
+specifique
+
+dest_type
+
+tiers
+
+—
+
+Le beneficiaire est un
+tiers
+
+dest_id
+
+NULL
+
+—
+
+Pas de fiche partenaire
+obligatoire
+
+montant
+
+450000
+
+—
+
+Montant reel paye
+
+nature
+
+charge
+
+—
+
+Identifie ce mouvement
+comme une charge
+
+id_type_charge
+
+ID loyer ferme
+
+—
+
+Pointe vers
+types_charges pour la
+categorisation
+
+description
+
+Loyer juin 2025
+
+—
+
+Libelle libre
+
+date_mouvement
+
+2025-06-01
+
+—
+
+Date comptable
+
+12.4 KPIs charges depuis mouvements_caisse
+•
+•
+•
+•
+•
+•
+
+Total reel par type : SUM(montant) WHERE id_type_charge = X
+Budget previsionnel : types_charges.montant_prev x nb periodes
+Ecart previsionnel / reel : budget - total reel
+Total charges par entite : filtrer sur source_id (portefeuille de la ferme ou de la boutique)
+Charge par oeuf produit = total charges ferme / nb oeufs sur la periode
+Repartition par categorie (fixe / variable / exceptionnelle) via types_charges.categorie
+
+13. Flux Metier — Synthese Consolidee
+Toutes les operations generant un flux d'argent atterrissent dans mouvements_caisse. Ce tableau recapitule
+l'ensemble des cas avec les natures simplifiees.
+source_t
+ype
+
+dest_typ
+e
+
+Vente ferme -> client externe
+(especes ou virement)
+
+tiers
+
+portefeui
+lle
+
+vente
+
+Vente ferme -> boutique interne
+(boutique paie ferme)
+
+portefeuill
+e
+
+portefeuill
+e
+
+vente (2 mouvements lies : debit boutique
++ credit ferme)
+
+Vente boutique -> client externe
+
+tiers
+
+portefeui
+lle
+
+vente
+
+Achat fournisseur (aliments,
+vaccins, materiel)
+
+portefeuill
+e
+
+tiers
+
+achat
+
+Operation
+
+Page 23
+
+nature
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+Achat COFO
+
+portefeui
+lle
+
+Vente COFO
+
+tiers
+
+tiers
+
+achat_cofo
+
+portefeuill
+e
+
+vente_cofo
+
+tiers
+
+veterinaire
+
+Paiement veterinaire
+
+portefeui
+lle
+
+Reglement d'une charge
+
+portefeuill
+e
+
+tiers
+
+Depot caisse -> banque
+
+portefeui
+lle
+
+portefeui
+lle
+
+transfert_portefeuille
+
+Retrait banque -> caisse
+
+portefeuill
+e
+
+portefeuill
+e
+
+transfert_portefeuille
+
+Virement bancaire interne
+
+portefeui
+lle
+
+portefeui
+lle
+
+transfert_portefeuille
+
+charge (+ id_type_charge)
+
+Note sur la vente ferme -> boutique : c'est le seul cas ou source_type et dest_type sont tous les deux
+'portefeuille'. Deux mouvements mouvements_caisse sont crees en meme temps et lies par le meme
+reference_id : un debit du portefeuille de la boutique et un credit du portefeuille de la ferme.
+
+14. Reporting & Tableaux de Bord
+14.1 Tresorerie consolidee
+•
+•
+•
+•
+
+Solde de chaque caisse : calcule depuis mouvements_caisse (dest - source)
+Solde de chaque compte bancaire : idem via source_type/dest_type = 'banque'
+Total tresorerie par entite = somme caisses + somme comptes bancaires
+Evolution de la tresorerie semaine par semaine
+
+14.2 Tableau de bord ferme
+•
+•
+•
+•
+•
+
+Production journaliere / hebdomadaire / mensuelle
+Taux de ponte par lot
+Taux de mortalite
+Cout alimentation par lot
+Cout de revient par oeuf = (cout aliment + charges ferme + veterinaire) / nb oeufs
+
+14.3 Tableau de bord COFO
+•
+•
+•
+•
+
+Total achats COFO (especes + virement)
+Total ventes COFO (especes + virement)
+Benefice net COFO
+Detail par caisse / banque source
+
+14.4 Tableau de bord boutiques
+•
+Page 24
+
+Chiffre d'affaires par boutique et par periode
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+•
+•
+•
+
+Volumes par produit
+Ruptures de stock
+Comparatif inter-boutiques
+
+14.5 Tableau de bord charges
+•
+•
+•
+•
+
+Budget previsionnel vs reel par categorie
+Ecart et tendances
+Repartition especes / virement
+Charge par oeuf produit
+
+14.6 Rapport financier consolide
+•
+•
+•
+
+Toutes les entrees et sorties par nature depuis mouvements_caisse
+Resultat net = total entrees tiers -> caisses/banques - total sorties caisses/banques -> tiers
+Mouvements internes (depot, retrait, virement) exclus du resultat car neutres
+
+14.7 Tableau de bord creances et dettes partenaires
+•
+•
+•
+•
+•
+•
+
+Encours clients total : somme des creances non encaissees sur tous les clients actifs
+Encours fournisseurs total : somme des dettes non payees sur tous les fournisseurs actifs
+Detail par partenaire : factures en attente, montant du, age de la dette/creance en jours
+Alertes : partenaires dont l'encours depasse la limite_credit definie sur leur fiche
+Factures en retard : liste des achats/ventes non_paye depuis plus de 30 / 60 / 90 jours
+Historique des paiements par partenaire : dates, montants, portefeuilles utilises
+
+15. Gestion des Utilisateurs et Droits d'Acces
+L'application definit cinq profils utilisateurs couvrant la ferme et le reseau de boutiques. Chaque utilisateur
+est rattache a un role et, pour les roles boutique, a une boutique precise. Les acces sont strictement
+delimites par role.
+
+15.1 Les cinq roles
+Role
+
+Description
+
+Administrateur
+
+Acces total. Gere le systeme, les utilisateurs, toutes les entites (ferme + toutes les
+boutiques).
+
+PDG
+
+Vision globale ferme. Acces complet sur la ferme et ses finances. N'a aucun acces
+aux boutiques.
+
+Controleur
+
+Operateur terrain ferme. Saisit le ramassage d'oeufs, la consommation d'aliments et
+le rapport journalier.
+
+Gerant
+
+Responsable d'une boutique precise. Gere le stock, la caisse, les vendeurs et les
+rapports de SA boutique uniquement.
+
+Vendeur
+
+Operateur de vente dans une boutique precise. Enregistre les ventes et consulte le
+stock de SA boutique uniquement.
+
+Page 25
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+15.2 Table utilisateurs
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant unique
+
+nom
+
+VARCHAR(150)
+
+Oui
+
+Nom complet
+
+email
+
+VARCHAR(150)
+
+Oui
+
+Adresse email —
+identifiant de connexion
+unique
+
+mot_de_passe
+
+VARCHAR(255)
+
+Oui
+
+Hash bcrypt du mot de
+passe
+
+role
+
+ENUM
+
+Oui
+
+administrateur / pdg /
+controleur / gerant /
+vendeur
+
+id_boutique
+
+INT (FK)
+
+Cond.
+
+ID boutique rattachee
+(obligatoire si role =
+gerant ou vendeur)
+
+actif
+
+BOOLEAN
+
+Oui
+
+Compte actif ou
+suspendu
+
+derniere_cnx
+
+TIMESTAMP
+
+Auto
+
+Horodatage de la
+derniere connexion
+
+created_at
+
+TIMESTAMP
+
+Auto
+
+Date de creation du
+compte
+
+Regle de validation : si role = 'gerant' ou 'vendeur', alors id_boutique est obligatoire. Pour les roles
+administrateur, PDG et controleur, id_boutique doit etre NULL (acces non restreint a une boutique).
+
+15.3 Rattachement des utilisateurs aux boutiques
+Chaque boutique possede exactement un gerant et peut avoir plusieurs vendeurs. Ce rattachement est
+assure par le champ id_boutique dans la table utilisateurs.
+Contrainte
+
+Role concerne
+
+Regle
+
+Un seul gerant par boutique
+
+Gerant
+
+UNIQUE sur (id_boutique) WHERE
+role = 'gerant'
+
+Plusieurs vendeurs par boutique
+
+Vendeur
+
+Pas de contrainte d'unicite — N
+vendeurs possibles
+
+Un vendeur dans une seule
+boutique
+
+Vendeur
+
+id_boutique est obligatoire et
+unique par utilisateur
+
+15.4 Profils detailles
+
+Page 26
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+Administrateur — Acces total
+Configure le systeme, cree et gere tous les utilisateurs (y compris les gerants et vendeurs), a une visibilite
+complete sur la ferme et toutes les boutiques.
+Module
+
+Actions autorisees
+
+Ferme & Alimentation
+
+Gestion complète lots, productions, aliments, stocks
+
+Sante & Veterinaires
+
+Gestion complète vaccinations, traitements, contrats
+
+Toutes les boutiques
+
+Acces et gestion de chaque boutique sans restriction
+
+COFO
+
+Enregistrement achats/ventes, rapports
+
+Finance complete
+
+mouvements_caisse, caisses ferme et boutiques, comptes bancaires
+
+Charges
+
+Referentiel et reglements toutes entites
+
+Utilisateurs
+
+Creation / modification / desactivation de tous les roles
+
+Reporting
+
+Tous les tableaux de bord ferme et boutiques
+
+PDG — Vision ferme, sans acces boutiques
+Suit la performance globale de la ferme et ses finances. N'intervient pas dans les operations des boutiques.
+Module
+
+Acces
+
+Detail
+
+Ferme / Production
+
+Complet
+
+Tous les lots, productions, alimentation
+
+Sante / Veterinaires
+
+Complet
+
+Lecture et validation des soins
+
+COFO
+
+Complet
+
+Achats, ventes, rapports
+
+Finance ferme
+
+Complet
+
+Caisses ferme, banques ferme, mouvements
+ferme
+
+Charges ferme
+
+Lecture
+
+Consultation uniquement
+
+Boutiques
+
+INTERDIT
+
+Aucun acces : stocks, ventes, caisses
+boutiques
+
+Finance boutiques
+
+INTERDIT
+
+Aucun acces aux caisses et banques
+boutiques
+
+Utilisateurs
+
+INTERDIT
+
+Ne peut pas gerer les comptes
+
+Reporting boutiques
+
+INTERDIT
+
+Aucun rapport boutique
+
+Controleur — Terrain ferme
+Realise le ramassage des oeufs, enregistre la consommation d'aliments et soumet le rapport journalier.
+Aucun acces financier ni aux boutiques.
+Module
+Production oeufs
+
+Page 27
+
+Acces
+Ecriture
+
+Detail
+Saisie du ramassage par lot
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+Consommation aliments
+
+Ecriture
+
+Saisie consommation journaliere par lot
+
+Mortalites
+
+Ecriture
+
+Signalement des deces avec cause
+
+Rapport journalier
+
+Ecriture
+
+Creation et soumission du rapport quotidien
+
+Lots
+
+Lecture
+
+Consultation des lots actifs
+
+Stocks aliments
+
+Lecture
+
+Niveau de stock disponible
+
+Sante
+
+Lecture
+
+Calendrier vaccinations et traitements
+
+Finance / Banques
+
+INTERDIT
+
+Aucun acces
+
+Boutiques / COFO
+
+INTERDIT
+
+Aucun acces
+
+Utilisateurs / Config
+
+INTERDIT
+
+Aucun acces
+
+Gerant — Responsable d'une boutique
+Gere l'integralite des operations de SA boutique : stock, ventes, caisse, compte bancaire boutique, charges
+boutique. Peut consulter et creer les comptes vendeurs de SA boutique. N'a aucun acces a la ferme ni aux
+autres boutiques.
+Module
+
+Acces
+
+Detail
+
+Stock boutique
+
+Complet
+
+Consultation et ajustement du stock de SA
+boutique
+
+Ventes boutique
+
+Complet
+
+Consultation de toutes les ventes de SA
+boutique
+
+Caisse boutique
+
+Complet
+
+Acces complet a la caisse de SA boutique
+
+Banque boutique
+
+Complet
+
+Acces au compte bancaire de SA boutique
+
+Charges boutique
+
+Complet
+
+Saisie et consultation des charges de SA
+boutique
+
+Rapport boutique
+
+Complet
+
+Tableaux de bord et rapports de SA boutique
+
+Vendeurs de SA boutique
+
+Ecriture
+
+Creation et desactivation des comptes
+vendeurs
+
+Autres boutiques
+
+INTERDIT
+
+Aucun acces aux autres boutiques
+
+Ferme / COFO / Finance ferme
+
+INTERDIT
+
+Aucun acces a la ferme et ses finances
+
+Administrateur / PDG
+
+INTERDIT
+
+Ne peut pas modifier ces comptes
+
+Vendeur — Operateur de vente en boutique
+Enregistre les ventes au comptoir de SA boutique et consulte le stock disponible. N'a aucun acces a la
+caisse, aux finances ni a la gestion du stock.
+Module
+Ventes boutique
+
+Page 28
+
+Acces
+Ecriture
+
+Detail
+Saisie des ventes de SA boutique
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+uniquement
+Stock boutique
+
+Lecture
+
+Consultation du stock disponible en SA
+boutique
+
+Produits
+
+Lecture
+
+Consultation du catalogue produits et prix
+
+Caisse boutique
+
+INTERDIT
+
+Aucun acces direct a la caisse
+
+Banque boutique
+
+INTERDIT
+
+Aucun acces
+
+Charges / Reporting
+
+INTERDIT
+
+Aucun acces
+
+Autres boutiques
+
+INTERDIT
+
+Aucun acces
+
+Ferme / Finance / Config
+
+INTERDIT
+
+Aucun acces
+
+15.5 Rapport journalier du controleur
+Chaque soir, le controleur soumet un rapport consolide de la journee. Ce rapport est valide par
+l'administrateur ou le PDG.
+
+Structure : rapports_journaliers
+Champ
+
+Type
+
+Requis
+
+Description
+
+id
+
+INT (PK)
+
+Oui
+
+Identifiant
+
+id_controleur
+
+INT (FK)
+
+Oui
+
+Utilisateur controleur
+ayant soumis
+
+date_rapport
+
+DATE
+
+Oui
+
+Date de la journee
+rapportee
+
+nb_oeufs_total
+
+INT
+
+Calc.
+
+Total oeufs ramasses
+tous lots confondus
+
+nb_oeufs_castes
+
+INT
+
+Calc.
+
+Total oeufs castes /
+inutilisables
+
+nb_deces
+
+INT
+
+Calc.
+
+Total deces de la journee
+
+aliment_consomme_kg
+
+DECIMAL(10,2)
+
+Calc.
+
+Total aliment consomme
+en kg
+
+observations
+
+TEXT
+
+Non
+
+Commentaires libres du
+controleur
+
+statut
+
+ENUM
+
+Oui
+
+brouillon / soumis / valide
+
+valide_par
+
+INT (FK)
+
+Non
+
+Administrateur ou PDG
+validateur
+
+date_validation
+
+TIMESTAMP
+
+Non
+
+Horodatage de la
+validation
+
+created_at
+
+TIMESTAMP
+
+Auto
+
+Horodatage de creation
+
+Page 29
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+15.6 Synthese des acces par module
+Tableau recapitulatif des cinq roles sur l'ensemble des modules.
+Module
+
+Admin
+
+PDG
+
+Controleur
+
+Gerant
+
+Vendeur
+
+Ferme / Production
+
+Complet
+
+Complet
+
+Ecriture
+
+Interdit
+
+Interdit
+
+Alimentation
+
+Complet
+
+Complet
+
+Ecriture
+
+Interdit
+
+Interdit
+
+Sante / Veto
+
+Complet
+
+Complet
+
+Lecture
+
+Interdit
+
+Interdit
+
+Boutique (propre)
+
+Complet
+
+Interdit
+
+Interdit
+
+Complet
+
+Partiel
+
+Autres boutiques
+
+Complet
+
+Interdit
+
+Interdit
+
+Interdit
+
+Interdit
+
+COFO
+
+Complet
+
+Complet
+
+Interdit
+
+Interdit
+
+Interdit
+
+Finance ferme
+
+Complet
+
+Complet
+
+Interdit
+
+Interdit
+
+Interdit
+
+Finance boutique
+
+Complet
+
+Interdit
+
+Interdit
+
+Complet
+
+Interdit
+
+Charges
+
+Complet
+
+Lecture
+
+Interdit
+
+Boutique
+
+Interdit
+
+Rapport journalier
+
+Validation
+
+Validation
+
+Ecriture
+
+Interdit
+
+Interdit
+
+Utilisateurs
+
+Complet
+
+Interdit
+
+Interdit
+
+Vendeurs
+
+Interdit
+
+Reporting ferme
+
+Complet
+
+Complet
+
+Interdit
+
+Interdit
+
+Interdit
+
+Reporting boutique
+
+Complet
+
+Interdit
+
+Interdit
+
+Complet
+
+Interdit
+
+16. Architecture Base de Donnees — Recapitulatif
+L'application repose sur 25 tables normalisees. La table mouvements_caisse est la table centrale unique
+pour tous les flux financiers.
+Table
+
+Module
+
+Role principal
+
+produits
+
+Transversal
+
+Referentiel produits (oeufs, aliments, vaccins,
+medicaments, materiel)
+
+partenaires
+
+Transversal
+
+Referentiel unifie fournisseurs et clients avec limite de
+credit
+
+paiements_partenaires
+
+Transversal
+
+Reglements encaissements/decaissements — source
+du solde creance/dette
+
+utilisateurs
+
+Utilisateurs
+
+Comptes : admin / pdg / controleur / gerant / vendeur
+
+rapports_journaliers
+
+Utilisateurs
+
+Rapport quotidien soumis par le controleur
+
+portefeuilles
+
+Finance
+
+Caisses physiques et comptes bancaires reunis (type:
+caisse/banque)
+
+mouvements_caisse
+
+Finance
+
+TABLE CENTRALE — 100% des flux d'argent (caisse
+
+Page 30
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+et banque)
+types_charges
+
+Charges
+
+Referentiel charges — id_type_charge dans
+mouvements_caisse suffit a tout reconstruire
+
+lots
+
+Ferme
+
+Lots de poules avec effectif et statut
+
+productions_oeufs
+
+Ferme
+
+Collecte journaliere d'oeufs par lot
+
+ventes
+
+Ventes
+
+En-tete de vente — ferme->client, ferme->boutique
+(id_boutique_acheteur), boutique->client
+
+ventes_lignes
+
+Ventes
+
+Lignes de vente : 1 ligne = 1 produit avec quantite et
+prix unitaire
+
+achats
+
+Achats
+
+En-tete de facture fournisseur — tous types de
+produits (aliments, vaccins, materiel...)
+
+achats_lignes
+
+Achats
+
+Lignes de facture : 1 ligne = 1 produit avec quantite,
+prix, num_lot, date_peremption
+
+consommations_aliments
+
+Alimentation
+
+Consommation quotidienne d'aliments par lot de
+poules
+
+vaccinations
+
+Sante
+
+Vaccinations administrees par lot
+
+traitements
+
+Sante
+
+Traitements medicaux par lot
+
+mortalites
+
+Sante
+
+Deces enregistres par lot avec cause
+
+veterinaires
+
+Veterinaires
+
+Fiches des veterinaires (avec ou sans contrat)
+
+contrats_veterinaires
+
+Veterinaires
+
+Contrats avec suivi montant paye et solde restant
+
+interventions_veterinaires
+
+Veterinaires
+
+Detail de chaque intervention et son cout
+
+boutiques
+
+Boutiques
+
+Fiches boutiques (1 gerant, N vendeurs)
+
+stocks
+
+Stocks
+
+Niveaux de stock en temps reel (ferme et chaque
+boutique)
+
+mouvements_stock
+
+Stocks
+
+Historique de tous les mouvements physiques de stock
+
+cofo_operations
+
+COFO
+
+Detail metier des achats et ventes de COFO
+
+17. Description Fonctionnelle — Experience Utilisateur
+L'application est un SaaS autonome. Aucun technicien n'est necessaire pour la mise en service :
+l'administrateur configure tout depuis l'interface. Cette section decrit le parcours utilisateur complet, de la
+creation du compte jusqu'aux operations quotidiennes de chaque role.
+
+17.1 Onboarding — Premiere connexion
+Etape 1 : Creation du compte organisation
+Lorsqu'un nouveau client souscrit, il cree son organisation en renseignant :
+Page 31
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+•
+•
+•
+
+Nom de l'organisation (ex: Ferme Avicole Diallokoura)
+Pays et devise principale (GNF par defaut)
+Email administrateur + mot de passe
+
+Le compte administrateur est cree automatiquement. Aucune intervention technique requise.
+
+Etape 2 : Wizard de configuration initiale
+Un assistant pas-a-pas guide l'administrateur a travers 5 etapes obligatoires avant de pouvoir utiliser
+l'application :
+Etape
+
+Action
+
+Ce qui est cree
+
+1/5
+
+Creer la ferme
+
+L'entite ferme avec son nom et adresse
+
+2/5
+
+Ajouter les boutiques
+
+1 ou N boutiques (nom, adresse, responsable)
+
+3/5
+
+Configurer les portefeuilles
+
+Au moins 1 caisse par entite + comptes bancaires
+optionnels
+
+4/5
+
+Inviter les utilisateurs
+
+Emails + roles : PDG, Controleur, Gerant(s), Vendeur(s)
+
+5/5
+
+Ajouter les produits de base
+
+Oeufs (type: oeuf), aliments courants, vaccins de
+reference
+
+A la fin du wizard, un tableau de bord vide est affiche avec des indicateurs a zero et des boutons d'action
+rapide. L'application est operationnelle.
+
+17.2 Authentification
+•
+•
+•
+•
+•
+•
+
+Connexion par email + mot de passe
+Lien 'Mot de passe oublie' : email de reinitialisation envoye automatiquement
+Invitation utilisateur : l'administrateur saisit l'email du futur utilisateur, le systeme envoie un lien
+d'activation valable 48h
+A la premiere connexion sur invitation, l'utilisateur choisit son mot de passe
+Session maintenue 8h (configurable par l'administrateur)
+Chaque utilisateur voit uniquement les menus correspondant a son role — les autres n'existent pas
+dans son interface
+
+17.3 Interface Administrateur
+L'administrateur dispose d'une vue globale sur toutes les entites. Son menu principal contient :
+Section du menu
+
+Ce que l'administrateur peut faire
+
+Tableau de bord global
+
+Vue consolidee : tresorerie totale (ferme + boutiques), production du jour,
+alertes stock, derniers mouvements
+
+Ferme
+
+Gerer les lots, saisir productions et consommations, consulter la sante,
+valider rapports journaliers
+
+Boutiques
+
+Acceder a n'importe quelle boutique, consulter ventes, stocks, caisses
+
+Achats
+
+Creer une facture fournisseur multi-produits, valider le paiement, consulter
+l'historique
+
+Ventes
+
+Consulter toutes les ventes ferme et boutiques, filtrer par periode ou entite
+
+Page 32
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+COFO
+
+Enregistrer achat ou vente COFO, choisir le portefeuille source/destination
+
+Finance
+
+Voir tous les portefeuilles, enregistrer un mouvement manuel, transfert
+caisse <-> banque
+
+Charges
+
+Configurer les types de charges, enregistrer un reglement
+
+Veterinaires
+
+Creer fiches, saisir contrats et interventions, enregistrer paiements
+
+Rapports
+
+Generer tout rapport avec filtres date, entite, categorie — export
+PDF/Excel
+
+Parametres
+
+Gerer les utilisateurs, les produits, les partenaires, la configuration
+generale
+
+17.4 Interface PDG
+Le PDG se connecte et voit uniquement les modules qui concernent la ferme. Son tableau de bord affiche :
+•
+•
+•
+•
+•
+
+Production oeufs : graphe 30 derniers jours
+Tresorerie ferme : solde de chaque portefeuille ferme
+Cout de revient par oeuf du mois en cours
+Statut des contrats veterinaires (solde restant)
+Alertes stock aliments et vaccins
+
+Il ne voit aucun element lie aux boutiques. Les menus Boutiques, Finance boutiques et Utilisateurs sont
+absents de son interface.
+
+17.5 Interface Controleur
+Le controleur a une interface epuree, concue pour une saisie rapide sur mobile ou tablette depuis la ferme.
+Son flux de travail quotidien :
+Moment
+
+Action
+
+Ecran utilise
+
+Matin
+
+Saisie alimentation
+
+Bouton 'Enregistrer consommation' -> choisir lot ->
+quantite aliment
+
+Journee
+
+Signalement mortalite
+
+Bouton 'Signaler un deces' -> lot concerne -> nombre ->
+cause
+
+Soir
+
+Ramassage oeufs
+
+Bouton 'Saisir production' -> lot -> nb oeufs ramasses ->
+nb casses
+
+Soir
+
+Soumettre le rapport
+
+Rapport journalier auto-rempli avec saisies du jour ->
+relire -> Soumettre
+
+Le rapport journalier est pre-rempli automatiquement avec les saisies de la journee (oeufs, deces, aliment).
+Le controleur n'a qu'a relire, ajouter des observations si besoin, et soumettre. L'administrateur et le PDG
+recoivent une notification.
+
+17.6 Interface Gerant de boutique
+Le gerant voit uniquement sa boutique. Son tableau de bord affiche le solde de caisse, les ventes du jour et
+les alertes de stock. Ses actions principales :
+Action
+
+Page 33
+
+Parcours dans l'interface
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+Enregistrer une vente
+
+Ventes -> Nouvelle vente -> chercher produit -> quantite + prix ->
+confirmer -> mouvement caisse auto
+
+Receptionner un transfert
+
+Stock -> Transferts entrants -> valider la reception -> stock mis a jour
+
+Deposer en banque
+
+Finance -> Transfert -> Caisse -> Compte bancaire -> montant ->
+confirmer
+
+Payer une charge
+
+Charges -> Nouvelle charge -> choisir type -> montant -> portefeuille ->
+confirmer
+
+Creer un vendeur
+
+Parametres -> Utilisateurs -> Inviter -> email + role Vendeur -> envoyer
+invitation
+
+Consulter le rapport
+
+Rapports -> Choisir periode -> CA boutique, top produits, evolution
+tresorerie
+
+17.7 Interface Vendeur
+Interface minimaliste centree sur la vente. Apres connexion, le vendeur voit directement un ecran de saisie
+de vente :
+•
+•
+•
+•
+•
+
+Champ de recherche produit (par nom ou code) — affichage du stock disponible en temps reel
+Saisie quantite + confirmation du prix (pre-rempli depuis produits.prix_vente)
+Ajout de plusieurs lignes pour une vente multi-produits
+Saisie du nom client (optionnel) ou selection depuis partenaires
+Bouton 'Valider la vente' : stock decremente + mouvement mouvements_caisse cree
+automatiquement
+Historique des ventes du jour visible en bas de l'ecran
+
+•
+
+Le vendeur ne voit jamais le solde de caisse ni aucune information financiere.
+
+17.8 Parcours de saisie d'une facture fournisseur
+Ce parcours est identique que l'achat concerne des aliments, des vaccins ou du materiel — meme ecran,
+meme logique :
+Etape
+
+Action utilisateur
+
+Ce qui se passe en base
+
+1
+
+Cliquer 'Nouvel achat'
+
+Un enregistrement achats est cree avec statut_paiement
+= non_paye
+
+2
+
+Choisir le fournisseur
+
+id_partenaire renseigne sur l'en-tete (ou creation rapide
+du partenaire)
+
+3
+
+Saisir la reference facture +
+date
+
+reference et date_achat renseignes sur achats
+
+4
+
+Ajouter produit par produit
+
+1 ligne achats_lignes par produit : produit, quantite, prix
+— montant_ligne calcule
+
+5
+
+Valider la facture
+
+stocks incremente par ligne + montant_total calcule sur
+achats
+
+6
+
+Choisir portefeuille et payer
+
+1 mouvement mouvements_caisse cree (nature: achat)
++ statut_paiement = paye
+
+Si le paiement est partiel ou differe, l'etape 6 est optionnelle. La facture reste en statut 'non_paye' et apparait
+dans les alertes de paiement en attente.
+Page 34
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+
+17.9 Rapports et exports
+Tous les rapports sont accessibles depuis un ecran unique 'Rapports' avec des filtres :
+•
+•
+•
+
+Periode : jour / semaine / mois / trimestre / annee / plage personnalisee
+Entite : ferme / boutique X / toutes
+Type de rapport : tresorerie, production, ventes, achats, charges, COFO, veterinaires, stock
+Rapport
+
+Contenu et indicateurs cles
+
+Tresorerie consolidee
+
+Solde de chaque portefeuille, evolution graphique, ratio caisse/banque
+
+Production ferme
+
+Oeufs par lot par jour, taux de ponte, taux mortalite, evolution mensuelle
+
+Cout de revient
+
+Cout aliments + charges ferme + veterinaire / nb oeufs — par lot et global
+
+Ventes
+
+CA par entite, top produits, volumes, comparaison periodes
+
+Achats
+
+Total factures par fournisseur, par type de produit, statut paiements
+
+Charges
+
+Reel vs previsionnel par type, ecarts, repartition fixe/variable
+
+COFO
+
+Investissement total, encaissement total, benefice net, detail par
+portefeuille
+
+Veterinaires
+
+Interventions, couts, solde restant par contrat
+
+Stock
+
+Niveaux actuels, historique mouvements, alertes seuil bas
+
+Chaque rapport peut etre exporte en PDF (impression) ou en Excel (exploitation des donnees).
+
+17.10 Notifications et alertes
+•
+•
+•
+•
+•
+•
+
+Stock bas : alerte visuelle rouge sur le tableau de bord quand quantite < seuil_alerte
+Rapport journalier non soumis : alerte a 20h si le controleur n'a pas soumis
+Facture non payee : badge orange sur le menu Achats pour les factures en attente
+Contrat veterinaire expirant : alerte 30 jours avant la date de fin
+Nouvelle invitation : email automatique envoye a l'utilisateur invite
+Validation rapport journalier : notification a l'administrateur et au PDG
+
+17.11 Configuration sans technicien
+L'administrateur peut a tout moment, depuis les Parametres :
+Parametres
+
+Actions disponibles
+
+Produits
+
+Ajouter, modifier, archiver — type, unite, prix de reference, prix de vente
+
+Partenaires
+
+Creer fournisseur/client/les_deux, modifier coordonnees, archiver
+
+Portefeuilles
+
+Ajouter caisse ou compte bancaire, definir solde d'ouverture, desactiver
+
+Types de charges
+
+Creer nouvelles categories, definir periodicite et budget previsionnel
+
+Page 35
+
+Version 9.0 — 2025
+
+CAHIER DES CHARGES v9.0 — Application SaaS Avicole
+Utilisateurs
+
+Inviter, changer de role, desactiver — sans supprimer l'historique
+
+Boutiques
+
+Ajouter une nouvelle boutique, modifier infos, changer le gerant
+
+Organisation
+
+Nom, devise, fuseau horaire, logo — sans redemarrage ni intervention
+
+18. Conclusion
+Ce cahier des charges decrit une solution SaaS complete, cohérente et deployable sans intervention
+technique. Toutes les decisions d'architecture ont ete prises pour maximiser la simplicite de developpement
+et la robustesse operationnelle.
+•
+•
+•
+•
+•
+•
+
+Architecture financiere : 1 table mouvements_caisse + 1 table portefeuilles couvrent 100% des flux,
+7 natures seulement
+Pattern unifie achat/vente : achats+achats_lignes et ventes+ventes_lignes — meme logique,
+distinctions par champs
+Referentiels epures : produits (5 types), partenaires (fournisseur/client/les_deux) — pas de doublons
+5 roles metier clairs : Admin, PDG, Controleur, Gerant, Vendeur — chacun avec une interface
+adaptee
+Onboarding autonome : wizard 5 etapes, invitations par email, zero configuration technique
+25 tables normalisees, sans redondance — toute la donnee est consistante et traçable
+
+Document confidentiel — Version 9.0 — Tous droits reserves
+
+Page 36
+
+Version 9.0 — 2025
+
+

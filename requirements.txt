@@ -1,0 +1,38 @@
+Django==5.0.6
+djangorestframework==3.15.1
+djangorestframework-simplejwt==5.3.1
+psycopg2-binary==2.9.9
+redis==5.0.4
+celery==5.3.6
+django-celery-beat==2.6.0
+django-redis==5.4.0
+drf-spectacular==0.27.1
+weasyprint==61.2
+openpyxl==3.1.2
+gunicorn==22.0.0
+python-dotenv==1.0.1
+django-cors-headers==4.3.1
+django-filter==24.2
+Pillow==10.3.0
+
+# Monitoring & Profiling
+django-debug-toolbar==4.4.6
+django-silk==5.1.0
+
+# Audit & Historique
+django-auditlog==3.0.0
+
+# Health checks
+django-health-check==3.18.3
+
+# Erreurs standardisées
+drf-standardized-errors==0.14.1
+
+# Monitoring Celery
+flower==2.0.1
+
+# Tests
+pytest==8.2.0
+pytest-django==4.8.0
+factory-boy==3.3.0
+pytest-cov==5.0.0

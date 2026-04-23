@@ -1,0 +1,1 @@
+# Make settings a package

@@ -1,0 +1,12 @@
+.next
+.next-codex
+node_modules
+tmp
+tsconfig.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env*
+.git
+.gitignore
+Dockerfile
