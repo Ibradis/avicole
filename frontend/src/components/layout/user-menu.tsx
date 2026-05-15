@@ -90,13 +90,14 @@ export function UserMenu() {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Compte</DropdownMenuLabel>
-        <DropdownMenuItem disabled>
-          <UserCircle2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          Mon profil
-          <span className="ml-auto text-[10px] uppercase text-muted-foreground">Bientôt</span>
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <UserCircle2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            Mon profil
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/auth/change-password">
+          <Link href="/profile?tab=security">
             <KeyRound className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             Mot de passe
           </Link>
