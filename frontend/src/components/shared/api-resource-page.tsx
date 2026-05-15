@@ -60,6 +60,8 @@ export type ResourceConfig = {
   printTitle?: (row: ResourceRow) => string;
   detailView?: (row: ResourceRow, onBack: () => void) => React.ReactNode;
   customActions?: ResourceAction[];
+  /** Optional client-side filter applied to the raw API rows before display. */
+  filterData?: (rows: ResourceRow[], auth: any) => ResourceRow[];
 };
 
 export type ResourceAction = {
@@ -585,6 +587,14 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
     }
   });
 
+  const visibleData = useMemo<ResourceRow[]>(
+    () => {
+      const rows = data as ResourceRow[];
+      return config.filterData ? config.filterData(rows, auth) : rows;
+    },
+    [data, config, auth]
+  );
+
   const refresh = () => queryClient.invalidateQueries({ queryKey });
 
   const saveMutation = useMutation({
@@ -803,7 +813,7 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
           <div className="p-4 lg:p-8">
             <DataTable
               columns={columns as any}
-              data={data}
+              data={visibleData}
               isLoading={isLoading}
               searchPlaceholder={`Rechercher dans ${config.title.toLowerCase()}...`}
             />

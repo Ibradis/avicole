@@ -926,6 +926,12 @@ export const CONFIGS: Record<string, ResourceConfig> = {
     description: "Gestion des utilisateurs, invitations et rôles.",
     endpoint: "utilisateurs/",
     exportBase: "utilisateurs",
+    // Cache l'utilisateur connecté de sa propre liste équipe (il se gère via /profile)
+    filterData: (rows, auth) => {
+      const currentId = auth?.user?.id;
+      if (!currentId) return rows;
+      return rows.filter((row) => row.id !== currentId);
+    },
     columns: [
       { key: "email", label: "Email" },
       { key: "role", label: "Rôle" },
