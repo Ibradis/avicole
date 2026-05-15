@@ -18,14 +18,34 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import type { ReactNode } from "react";
+import { BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatGNF } from "@/lib/utils";
 import type { ChartPoint, StockItem } from "@/types/api";
 
 const COLORS = ["#1B6B35", "#D97706", "#2563EB", "#DC2626"];
 
 function EmptyChart() {
-  return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Aucune donnée API disponible</div>;
+  return (
+    <div className="flex h-full items-center justify-center">
+      <EmptyState
+        icon={BarChart3}
+        title="Aucune donnée à afficher"
+        description="Le graphique se mettra à jour dès que des données seront disponibles."
+      />
+    </div>
+  );
+}
+
+function ChartFigure({ label, summary, children }: { label: string; summary?: string; children: ReactNode }) {
+  return (
+    <figure role="img" aria-label={summary ? `${label}. ${summary}` : label} className="h-full w-full">
+      {children}
+      <figcaption className="sr-only">{summary ?? label}</figcaption>
+    </figure>
+  );
 }
 
 function CurrencyTooltip({ active, payload, label }: any) {
@@ -44,11 +64,17 @@ function CurrencyTooltip({ active, payload, label }: any) {
 }
 
 export function RevenueChart({ data }: { data: ChartPoint[] }) {
+  const totalRecettes = data.reduce((acc, p) => acc + Number(p.recettes ?? 0), 0);
+  const totalCharges = data.reduce((acc, p) => acc + Number(p.charges ?? 0), 0);
   return (
     <Card>
       <CardHeader><CardTitle>Recettes vs charges</CardTitle></CardHeader>
       <CardContent className="h-72">
         {!data.length ? <EmptyChart /> : (
+        <ChartFigure
+          label="Recettes vs charges sur la période"
+          summary={`Recettes totales ${formatGNF(totalRecettes)}, charges totales ${formatGNF(totalCharges)} sur ${data.length} périodes.`}
+        >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -60,6 +86,7 @@ export function RevenueChart({ data }: { data: ChartPoint[] }) {
             <Bar dataKey="charges" name="Charges" fill="#D97706" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        </ChartFigure>
         )}
       </CardContent>
     </Card>
@@ -67,11 +94,16 @@ export function RevenueChart({ data }: { data: ChartPoint[] }) {
 }
 
 export function ProductionChart({ data }: { data: ChartPoint[] }) {
+  const total = data.reduce((acc, p) => acc + Number((p as any).production ?? 0), 0);
   return (
     <Card>
       <CardHeader><CardTitle>Production oeufs</CardTitle></CardHeader>
       <CardContent className="h-72">
         {!data.length ? <EmptyChart /> : (
+        <ChartFigure
+          label="Production d'oeufs"
+          summary={`${total.toLocaleString("fr-FR")} oeufs cumulés sur ${data.length} périodes.`}
+        >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -81,6 +113,7 @@ export function ProductionChart({ data }: { data: ChartPoint[] }) {
             <Line type="monotone" dataKey="production" name="Oeufs" stroke="#2563EB" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
+        </ChartFigure>
         )}
       </CardContent>
     </Card>
@@ -88,11 +121,16 @@ export function ProductionChart({ data }: { data: ChartPoint[] }) {
 }
 
 export function TresorerieChart({ data }: { data: ChartPoint[] }) {
+  const last = data[data.length - 1] as any;
+  const summary = last
+    ? `Trésorerie finale ${formatGNF(Number(last.tresorerie ?? 0))} sur ${data.length} périodes.`
+    : undefined;
   return (
     <Card>
       <CardHeader><CardTitle>Trésorerie cumulée</CardTitle></CardHeader>
       <CardContent className="h-72">
         {!data.length ? <EmptyChart /> : (
+        <ChartFigure label="Trésorerie cumulée" summary={summary}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
@@ -109,6 +147,7 @@ export function TresorerieChart({ data }: { data: ChartPoint[] }) {
             <Area type="monotone" dataKey="tresorerie" stroke="#1B6B35" strokeWidth={2} fill="url(#tresorerie)" />
           </AreaChart>
         </ResponsiveContainer>
+        </ChartFigure>
         )}
       </CardContent>
     </Card>
@@ -116,11 +155,21 @@ export function TresorerieChart({ data }: { data: ChartPoint[] }) {
 }
 
 export function VentesDonut({ data }: { data: { name: string; value: number }[] }) {
+  const total = data.reduce((acc, d) => acc + d.value, 0);
+  const top = [...data].sort((a, b) => b.value - a.value)[0];
   return (
     <Card>
       <CardHeader><CardTitle>Répartition CA</CardTitle></CardHeader>
       <CardContent className="h-72">
         {!data.length ? <EmptyChart /> : (
+        <ChartFigure
+          label="Répartition du chiffre d'affaires"
+          summary={
+            top
+              ? `Total ${formatGNF(total)}. Principal contributeur : ${top.name} (${Math.round((top.value / total) * 100)}%).`
+              : undefined
+          }
+        >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={data} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} label={({ percent }) => (percent > 0.05 ? `${Math.round(percent * 100)}%` : "")}>
@@ -130,6 +179,7 @@ export function VentesDonut({ data }: { data: { name: string; value: number }[] 
             <Legend verticalAlign="bottom" />
           </PieChart>
         </ResponsiveContainer>
+        </ChartFigure>
         )}
       </CardContent>
     </Card>
@@ -138,11 +188,16 @@ export function VentesDonut({ data }: { data: { name: string; value: number }[] 
 
 export function StockAlertChart({ data }: { data: StockItem[] }) {
   const rows = data.slice(0, 6).map((item) => ({ name: item.produit_libelle ?? `Produit ${item.produit ?? item.id}`, stock: Number(item.quantite_actuelle ?? 0), seuil: Number(item.seuil_alerte ?? 0) }));
+  const alertes = rows.filter((r) => r.stock <= r.seuil).length;
   return (
     <Card>
       <CardHeader><CardTitle>Stocks sous seuil</CardTitle></CardHeader>
       <CardContent className="h-72">
         {!rows.length ? <EmptyChart /> : (
+        <ChartFigure
+          label="Stocks sous seuil d'alerte"
+          summary={`${alertes} produit${alertes > 1 ? "s" : ""} sous le seuil sur ${rows.length} affiché${rows.length > 1 ? "s" : ""}.`}
+        >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid horizontal={false} strokeDasharray="3 3" />
@@ -155,6 +210,7 @@ export function StockAlertChart({ data }: { data: StockItem[] }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        </ChartFigure>
         )}
       </CardContent>
     </Card>
@@ -162,11 +218,17 @@ export function StockAlertChart({ data }: { data: StockItem[] }) {
 }
 
 export function COFOChart({ data }: { data: ChartPoint[] }) {
+  const totalInv = data.reduce((acc, p) => acc + Number((p as any).investissement ?? 0), 0);
+  const totalEnc = data.reduce((acc, p) => acc + Number((p as any).encaissement ?? 0), 0);
   return (
     <Card>
       <CardHeader><CardTitle>COFO financier</CardTitle></CardHeader>
       <CardContent className="h-72">
         {!data.length ? <EmptyChart /> : (
+        <ChartFigure
+          label="COFO financier"
+          summary={`Investissement total ${formatGNF(totalInv)}, encaissement total ${formatGNF(totalEnc)}.`}
+        >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -178,6 +240,7 @@ export function COFOChart({ data }: { data: ChartPoint[] }) {
             <Bar dataKey="encaissement" name="Encaissement" fill="#1B6B35" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        </ChartFigure>
         )}
       </CardContent>
     </Card>

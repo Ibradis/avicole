@@ -15,6 +15,7 @@ import { DataTable, SortHeader } from "@/components/shared/data-table";
 import { ExportButtons } from "@/components/shared/export-buttons";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { PrintableDocument, buildOrganisation } from "@/components/shared/printable-document";
 import { apiClient } from "@/lib/axios";
 import { API_ROUTES } from "@/lib/api-routes";
 import { formatDateFr, formatGNF, unwrapResults } from "@/lib/utils";
@@ -59,6 +60,8 @@ export type ResourceConfig = {
   printTitle?: (row: ResourceRow) => string;
   detailView?: (row: ResourceRow, onBack: () => void) => React.ReactNode;
   customActions?: ResourceAction[];
+  /** Optional client-side filter applied to the raw API rows before display. */
+  filterData?: (rows: ResourceRow[], auth: any) => ResourceRow[];
 };
 
 export type ResourceAction = {
@@ -109,20 +112,66 @@ function displayCell(row: ResourceRow, column: ResourceColumn) {
   return String(value);
 }
 
+function plainCellValue(row: ResourceRow, column: ResourceColumn): string {
+  const value = row[column.key];
+  if (column.type === "date") return formatDateFr(value);
+  if (column.type === "money") return formatGNF(value);
+  if (column.type === "boolean") return value ? "Oui" : "Non";
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+}
+
 function PrintableRecord({ title, row, columns }: { title: string; row: ResourceRow; columns: ResourceColumn[] }) {
+  const user = useAuthStore((state) => state.user);
+  const docType = title.toUpperCase();
+
+  const reference = (() => {
+    const raw = row.reference ?? row.code ?? row.numero ?? row.id;
+    return raw ? `#${raw}` : "—";
+  })();
+
+  const dateValue = row.date ?? row.date_creation ?? row.created_at ?? row.date_vente ?? row.date_achat;
+  const status = row.statut ?? row.status;
+
+  const moneyColumn = columns.find((c) => c.type === "money");
+  const moneyValue = moneyColumn ? Number(row[moneyColumn.key] ?? 0) : null;
+
+  const partnerName =
+    row.client_nom ||
+    row.fournisseur_nom ||
+    row.destinataire_nom ||
+    row.partenaire_nom ||
+    row.nom ||
+    row.libelle ||
+    null;
+
+  const meta = columns
+    .slice(0, 8)
+    .map((col) => ({ label: col.label, value: plainCellValue(row, col) }));
+
+  const totals = moneyValue != null
+    ? [{ label: "TOTAL", value: formatGNF(moneyValue), strong: true }]
+    : [];
+
   return (
     <div className="hidden print:block">
-      <h1 className="mb-4 text-2xl font-semibold">{title}</h1>
-      <table className="w-full border-collapse text-sm">
-        <tbody>
-          {columns.map((col) => (
-            <tr key={col.key}>
-              <th className="border px-3 py-2 text-left">{col.label}</th>
-              <td className="border px-3 py-2">{displayCell(row, col)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <PrintableDocument
+        docType={docType}
+        reference={reference}
+        date={dateValue ? formatDateFr(dateValue) : undefined}
+        status={status ? String(status).toUpperCase() : undefined}
+        organisation={buildOrganisation(user ?? undefined)}
+        party={{ label: "Concerne", name: partnerName ?? title }}
+        meta={meta}
+        lines={[]}
+        totals={totals}
+        notes={row.observations || row.description || row.commentaire || undefined}
+        footer={
+          <span>
+            Document généré le {formatDateFr(new Date().toISOString())} · Avicole ERP
+          </span>
+        }
+      />
     </div>
   );
 }
@@ -221,14 +270,16 @@ function LinesField({
       
       {lines.map((line, index) => (
         <div key={index} className="flex flex-wrap items-end gap-3 p-3 border rounded-md bg-background relative mt-2">
-          <Button 
-            type="button" 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`Supprimer la ligne ${index + 1}`}
+            title="Supprimer cette ligne"
             className="absolute -right-3 -top-3 h-6 w-6 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={() => handleRemove(index)}
           >
-            <X className="h-3 w-3" />
+            <X className="h-3 w-3" aria-hidden="true" />
           </Button>
           
           {lineConfig.map(subField => {
@@ -536,6 +587,14 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
     }
   });
 
+  const visibleData = useMemo<ResourceRow[]>(
+    () => {
+      const rows = data as ResourceRow[];
+      return config.filterData ? config.filterData(rows, auth) : rows;
+    },
+    [data, config, auth]
+  );
+
   const refresh = () => queryClient.invalidateQueries({ queryKey });
 
   const saveMutation = useMutation({
@@ -543,23 +602,22 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
       if (editing?.id) return apiClient.patch(detailUrl(config.endpoint, editing.id), payload);
       return apiClient.post(config.endpoint, payload);
     },
+    meta: { errorMessage: "Enregistrement refusé par l'API" },
     onSuccess: () => {
       toast.success(editing?.id ? "Modifications enregistrées" : "Élément créé avec succès");
       setIsFormOpen(false);
       setEditing(null);
       refresh();
     },
-    onError: () => toast.error("Enregistrement refusé par l'API")
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (row: ResourceRow) => apiClient.delete(detailUrl(config.endpoint, row.id as number)),
+    meta: { errorMessage: "Suppression indisponible pour cette ressource", successMessage: "Suppression effectuée" },
     onSuccess: () => {
-      toast.success("Suppression effectuée");
       setDeleteTarget(null);
       refresh();
     },
-    onError: () => toast.error("Suppression indisponible pour cette ressource")
   });
 
   const validateMutation = useMutation({
@@ -569,11 +627,8 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
       if (action.method === "patch") return apiClient.patch(action.url, action.payload ?? {});
       return apiClient.post(action.url, action.payload ?? {});
     },
-    onSuccess: () => {
-      toast.success("Validation effectuée");
-      refresh();
-    },
-    onError: () => toast.error("Validation indisponible pour cette ressource")
+    meta: { errorMessage: "Validation indisponible pour cette ressource", successMessage: "Validation effectuée" },
+    onSuccess: () => refresh(),
   });
 
   const customActionMutation = useMutation({
@@ -587,10 +642,6 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
       setActiveAction(null);
       refresh();
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || err.response?.data?.error || "Une erreur est survenue lors de l'action";
-      toast.error(msg);
-    }
   });
 
   const openCreate = () => {
@@ -762,7 +813,7 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
           <div className="p-4 lg:p-8">
             <DataTable
               columns={columns as any}
-              data={data}
+              data={visibleData}
               isLoading={isLoading}
               searchPlaceholder={`Rechercher dans ${config.title.toLowerCase()}...`}
             />

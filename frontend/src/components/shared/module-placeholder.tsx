@@ -711,14 +711,16 @@ export const CONFIGS: Record<string, ResourceConfig> = {
       { key: "date_vaccination", label: "Date", type: "date" },
       { key: "lot_code", label: "Lot" },
       { key: "produit_nom", label: "Vaccin" },
+      { key: "veterinaire_nom", label: "Vétérinaire" },
       { key: "methode_administration", label: "Méthode" }
     ],
     fields: [
       { name: "date_vaccination", label: "Date", type: "date", required: true },
       { name: "lot", label: "Lot", remoteResource: API_ROUTES.ferme.lots, remoteLabel: "code", required: true },
-      { name: "produit", label: "Vaccin", remoteResource: API_ROUTES.produits, remoteLabel: "nom", required: true },
+      { name: "produit", label: "Vaccin", remoteResource: `${API_ROUTES.produits}?type=vaccin`, remoteLabel: "nom", required: true },
       { name: "methode_administration", label: "Méthode d'administration" },
-      { name: "intervenant", label: "Intervenant", remoteResource: "utilisateurs/", remoteLabel: "email" },
+      { name: "veterinaire", label: "Vétérinaire externe", remoteResource: API_ROUTES.veterinaires.list, remoteLabel: "nom" },
+      { name: "intervenant", label: "Intervenant interne", remoteResource: "utilisateurs/", remoteLabel: "email" },
       { name: "observations", label: "Observations", type: "textarea" },
       ...farmOnlyEntityFields
     ],
@@ -740,14 +742,15 @@ export const CONFIGS: Record<string, ResourceConfig> = {
       { key: "date_fin", label: "Fin", type: "date" },
       { key: "lot_code", label: "Lot" },
       { key: "produit_nom", label: "Médicament" },
-      { key: "posologie", label: "Posologie" }
+      { key: "veterinaire_nom", label: "Vétérinaire" }
     ],
     fields: [
       { name: "date_debut", label: "Date début", type: "date", required: true },
       { name: "date_fin", label: "Date fin", type: "date" },
       { name: "lot", label: "Lot", remoteResource: API_ROUTES.ferme.lots, remoteLabel: "code", required: true },
-      { name: "produit", label: "Médicament", remoteResource: API_ROUTES.produits, remoteLabel: "nom", required: true },
+      { name: "produit", label: "Médicament", remoteResource: `${API_ROUTES.produits}?type__in=aliment,autre`, remoteLabel: "nom", required: true },
       { name: "posologie", label: "Posologie" },
+      { name: "veterinaire", label: "Vétérinaire référent", remoteResource: API_ROUTES.veterinaires.list, remoteLabel: "nom" },
       { name: "observations", label: "Observations", type: "textarea" },
       ...farmOnlyEntityFields
     ],
@@ -920,16 +923,27 @@ export const CONFIGS: Record<string, ResourceConfig> = {
   // ---- Administration --------------------------------------------------------
   Utilisateurs: {
     title: "Équipe",
-    description: "Gestion des utilisateurs, invitations et rôles.",
+    description:
+      "Ajoutez un membre : le système génère un mot de passe temporaire et lui envoie ses identifiants par email.",
     endpoint: "utilisateurs/",
     exportBase: "utilisateurs",
+    // Cache l'utilisateur connecté de sa propre liste équipe (il se gère via /profile)
+    filterData: (rows, auth) => {
+      const currentId = auth?.user?.id;
+      if (!currentId) return rows;
+      return rows.filter((row) => row.id !== currentId);
+    },
     columns: [
       { key: "email", label: "Email" },
+      { key: "first_name", label: "Prénom" },
+      { key: "last_name", label: "Nom" },
       { key: "role", label: "Rôle" },
       { key: "telephone", label: "Téléphone" },
       { key: "is_active", label: "Actif", type: "boolean" }
     ],
     fields: [
+      { name: "first_name", label: "Prénom", required: true },
+      { name: "last_name", label: "Nom", required: true },
       { name: "email", label: "Email", type: "email", required: true },
       {
         name: "role",

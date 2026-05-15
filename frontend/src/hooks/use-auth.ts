@@ -41,9 +41,21 @@ export function useAuth() {
 
   const login = useMutation({
     mutationFn: async (payload: LoginPayload) => {
-      const { data } = await apiClient.post<LoginResponse>(API_ROUTES.auth.login, payload);
-      return data;
+      try {
+        const { data } = await apiClient.post<LoginResponse>(API_ROUTES.auth.login, payload);
+        return data;
+      } catch (err: any) {
+        // Compte inactif → orienter vers la page de confirmation
+        if (err?.response?.status === 403) {
+          router.push(`/inscription/confirmer?email=${encodeURIComponent(payload.email)}`);
+          throw new Error(
+            "Votre compte n'est pas encore confirmé. Saisissez le code reçu par email."
+          );
+        }
+        throw err;
+      }
     },
+    meta: { errorMessage: "Identifiants invalides", successMessage: "Connexion réussie" },
     onSuccess: (data) => {
       const payload = decodeJwt(data.access);
       const role = data.user?.role ?? normalizeRole(payload.role) ?? "admin";
@@ -52,35 +64,81 @@ export function useAuth() {
         email: String(payload.email ?? ""),
         role,
         entite_type: payload.entite_type === "ferme" || payload.entite_type === "boutique" ? payload.entite_type : null,
-        entite_id: typeof payload.entite_id === "number" ? payload.entite_id : null
+        entite_id: typeof payload.entite_id === "number" ? payload.entite_id : null,
       };
       setAuth({ tokens: { access: data.access, refresh: data.refresh }, user });
       rememberSession(data);
-      toast.success("Connexion réussie");
-      
+
       if (user.doit_changer_mdp) {
         router.push("/auth/change-password");
       } else {
         router.push("/");
       }
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.detail ?? "Identifiants invalides");
-    }
   });
 
   const register = useMutation({
     mutationFn: async (payload: RegisterPayload) => {
-      const { data } = await apiClient.post(API_ROUTES.organisations.inscription, payload);
+      const { data } = await apiClient.post<{
+        detail: string;
+        email: string;
+        organisation_nom: string;
+        expires_at: string;
+      }>(API_ROUTES.organisations.inscription, payload);
       return data;
     },
-    onSuccess: () => {
-      toast.success("Compte créé. Vous pouvez vous connecter.");
-      router.push("/login");
+    meta: {
+      errorMessage: "Impossible de créer le compte. Vérifiez les informations saisies.",
+      successMessage: "Compte créé — un code de confirmation vient d'être envoyé par email.",
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.detail ?? "L'inscription publique n'est pas encore exposée par l'API.");
-    }
+    onSuccess: (data) => {
+      const email = data?.email ?? "";
+      router.push(`/inscription/confirmer?email=${encodeURIComponent(email)}`);
+    },
+  });
+
+  const confirmRegistration = useMutation({
+    mutationFn: async (payload: { email: string; code: string }) => {
+      const { data } = await apiClient.post<LoginResponse>(API_ROUTES.auth.confirmRegistration, payload);
+      return data;
+    },
+    meta: {
+      errorMessage: "Code invalide ou expiré",
+      successMessage: "Compte confirmé. Bienvenue !",
+    },
+    onSuccess: (data) => {
+      if (!data?.access || !data?.refresh || !data?.user) {
+        router.push("/login");
+        return;
+      }
+      const payload = decodeJwt(data.access);
+      const role = data.user.role ?? normalizeRole(payload.role) ?? "admin";
+      const user: User = {
+        ...data.user,
+        role,
+        entite_type:
+          data.user.entite_type === "ferme" || data.user.entite_type === "boutique"
+            ? data.user.entite_type
+            : null,
+      };
+      setAuth({ tokens: { access: data.access, refresh: data.refresh }, user });
+      rememberSession({ access: data.access, refresh: data.refresh });
+      router.push("/");
+    },
+  });
+
+  const resendConfirmation = useMutation({
+    mutationFn: async (payload: { email: string }) => {
+      const { data } = await apiClient.post<{ detail: string; retry_after?: number }>(
+        API_ROUTES.auth.resendCode,
+        payload
+      );
+      return data;
+    },
+    meta: {
+      errorMessage: "Impossible de renvoyer le code",
+      successMessage: "Un nouveau code vient d'être envoyé.",
+    },
   });
 
   const activate = useMutation({
@@ -88,11 +146,8 @@ export function useAuth() {
       const { data } = await apiClient.post(API_ROUTES.auth.activate, payload);
       return data;
     },
-    onSuccess: () => {
-      toast.success("Compte activé");
-      router.push("/login");
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.detail ?? "Activation impossible")
+    meta: { errorMessage: "Activation impossible", successMessage: "Compte activé" },
+    onSuccess: () => router.push("/login"),
   });
 
   const resetPassword = useMutation({
@@ -100,8 +155,10 @@ export function useAuth() {
       const { data } = await apiClient.post(API_ROUTES.auth.resetPassword, payload);
       return data;
     },
-    onSuccess: () => toast.success("Si cet email existe, un lien a été envoyé."),
-    onError: (error: any) => toast.error(error?.response?.data?.detail ?? "Demande impossible")
+    meta: {
+      errorMessage: "Demande impossible",
+      successMessage: "Si cet email existe, un lien a été envoyé.",
+    },
   });
 
   const logout = async () => {
@@ -110,9 +167,10 @@ export function useAuth() {
     } finally {
       forgetSession();
       clearAuthStore();
+      toast.success("Vous êtes déconnecté");
       router.push("/login");
     }
   };
 
-  return { login, register, activate, resetPassword, logout };
+  return { login, register, confirmRegistration, resendConfirmation, activate, resetPassword, logout };
 }

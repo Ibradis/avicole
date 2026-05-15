@@ -1,35 +1,56 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/forms/form-field";
 import { useAuth } from "@/hooks/use-auth";
 
 const schema = z.object({
   email: z.string().email("Email invalide"),
-  password: z.string().min(1, "Mot de passe requis")
+  password: z.string().min(1, "Mot de passe requis"),
 });
 
 export function LoginForm() {
   const { login } = useAuth();
-  const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), mode: "onChange", defaultValues: { email: "", password: "" } });
+  const [showPassword, setShowPassword] = useState(false);
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    mode: "onChange",
+    defaultValues: { email: "", password: "" },
+  });
+  const errors = form.formState.errors;
 
   return (
-    <form onSubmit={form.handleSubmit((values) => login.mutate(values))} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" autoComplete="email" {...form.register("email")} />
-        <p className="text-xs text-destructive">{form.formState.errors.email?.message}</p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">Mot de passe</Label>
-        <Input id="password" type="password" autoComplete="current-password" {...form.register("password")} />
-        <p className="text-xs text-destructive">{form.formState.errors.password?.message}</p>
-      </div>
+    <form onSubmit={form.handleSubmit((values) => login.mutate(values))} className="space-y-4" noValidate>
+      <FormField
+        label="Email"
+        type="email"
+        autoComplete="email"
+        error={errors.email?.message}
+        {...form.register("email")}
+      />
+      <FormField
+        label="Mot de passe"
+        type={showPassword ? "text" : "password"}
+        autoComplete="current-password"
+        error={errors.password?.message}
+        trailing={
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        }
+        {...form.register("password")}
+      />
       <Button className="w-full" disabled={login.isPending || !form.formState.isValid}>
         {login.isPending ? "Connexion..." : "Se connecter"}
       </Button>

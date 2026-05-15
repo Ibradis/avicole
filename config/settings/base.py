@@ -162,6 +162,55 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+# Email — toute la configuration est pilotée par le fichier .env
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = _env_bool('EMAIL_USE_TLS', True)
+EMAIL_USE_SSL = _env_bool('EMAIL_USE_SSL', False)
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '20'))
+
+# Nom d'expéditeur affiché ("Avicole ERP <no-reply@avicole.com>")
+EMAIL_SENDER_NAME = os.environ.get('EMAIL_SENDER_NAME', 'Avicole ERP')
+EMAIL_SENDER_ADDRESS = os.environ.get(
+    'EMAIL_SENDER_ADDRESS',
+    EMAIL_HOST_USER or 'no-reply@avicole.local',
+)
+DEFAULT_FROM_EMAIL = os.environ.get(
+    'DEFAULT_FROM_EMAIL',
+    f'{EMAIL_SENDER_NAME} <{EMAIL_SENDER_ADDRESS}>',
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# URL du frontend (utilisée dans les emails)
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:13000')
+
+# Confirmation d'inscription
+EMAIL_CONFIRMATION_TTL_MINUTES = int(os.environ.get('EMAIL_CONFIRMATION_TTL_MINUTES', '15'))
+EMAIL_CONFIRMATION_MAX_ATTEMPTS = int(os.environ.get('EMAIL_CONFIRMATION_MAX_ATTEMPTS', '5'))
+EMAIL_CONFIRMATION_RESEND_COOLDOWN_SECONDS = int(
+    os.environ.get('EMAIL_CONFIRMATION_RESEND_COOLDOWN_SECONDS', '60')
+)
+
+# Sanity check : TLS et SSL sont mutuellement exclusifs
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ValueError(
+        "Configuration email invalide : EMAIL_USE_TLS et EMAIL_USE_SSL ne peuvent pas être tous deux à True."
+    )
+
 # Celery Base Config
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True

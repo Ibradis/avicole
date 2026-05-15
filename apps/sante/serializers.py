@@ -5,6 +5,7 @@ from .models import Vaccination, Traitement, Mortalite
 class VaccinationReadSerializer(AvicoleValidationMixin, serializers.ModelSerializer):
     lot_code = serializers.CharField(source='lot.code', read_only=True)
     produit_nom = serializers.CharField(source='produit.nom', read_only=True)
+    veterinaire_nom = serializers.CharField(source='veterinaire.nom', read_only=True)
 
     class Meta:
         model = Vaccination
@@ -34,6 +35,7 @@ class VaccinationWriteSerializer(AvicoleValidationMixin, serializers.ModelSerial
 class TraitementReadSerializer(AvicoleValidationMixin, serializers.ModelSerializer):
     lot_code = serializers.CharField(source='lot.code', read_only=True)
     produit_nom = serializers.CharField(source='produit.nom', read_only=True)
+    veterinaire_nom = serializers.CharField(source='veterinaire.nom', read_only=True)
 
     class Meta:
         model = Traitement
