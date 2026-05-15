@@ -68,14 +68,36 @@ export function useAuth() {
 
   const register = useMutation({
     mutationFn: async (payload: RegisterPayload) => {
-      const { data } = await apiClient.post(API_ROUTES.organisations.inscription, payload);
+      const { data } = await apiClient.post<
+        LoginResponse & { organisation?: { nom: string }; ferme?: { id: number; nom: string } }
+      >(API_ROUTES.organisations.inscription, payload);
       return data;
     },
     meta: {
-      errorMessage: "L'inscription publique n'est pas encore exposée par l'API.",
-      successMessage: "Compte créé. Vous pouvez vous connecter.",
+      errorMessage: "Impossible de créer le compte. Vérifiez les informations saisies.",
+      successMessage: "Bienvenue dans votre espace Avicole ERP !",
     },
-    onSuccess: () => router.push("/login"),
+    onSuccess: (data) => {
+      // Auto-login: backend returns access + refresh + user just like /auth/connexion
+      if (!data?.access || !data?.refresh || !data?.user) {
+        // Fallback: backend did not return tokens for some reason.
+        router.push("/login");
+        return;
+      }
+      const payload = decodeJwt(data.access);
+      const role = data.user.role ?? normalizeRole(payload.role) ?? "admin";
+      const user: User = {
+        ...data.user,
+        role,
+        entite_type:
+          data.user.entite_type === "ferme" || data.user.entite_type === "boutique"
+            ? data.user.entite_type
+            : null,
+      };
+      setAuth({ tokens: { access: data.access, refresh: data.refresh }, user });
+      rememberSession({ access: data.access, refresh: data.refresh });
+      router.push("/");
+    },
   });
 
   const activate = useMutation({
