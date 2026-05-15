@@ -79,7 +79,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
 
 export function Sidebar() {
   return (
-    <aside className="hidden w-72 shrink-0 border-r lg:flex lg:flex-col">
+    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 self-start border-r lg:flex lg:flex-col">
       <SidebarContent />
     </aside>
   );
