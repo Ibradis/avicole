@@ -6,7 +6,7 @@ export default function RegisterPage() {
   return (
     <AuthShell
       title="Créer votre espace Avicole ERP"
-      description="Une organisation est créée à la volée et vous êtes connecté immédiatement en tant que propriétaire."
+      description="Trois étapes guidées : votre organisation, vos coordonnées, puis votre mot de passe."
     >
       <RegisterForm />
       <p className="mt-6 text-center text-sm text-muted-foreground">
