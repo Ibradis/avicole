@@ -53,6 +53,7 @@ export function BoutiqueDetail({ boutique }: BoutiqueDetailProps) {
         });
       }
     },
+    meta: { errorMessage: "Erreur lors de l'affiliation" },
     onSuccess: () => {
       toast.success(affiliationMode === "new" ? "Vendeur créé et affilié" : "Vendeur affilié avec succès");
       setIsAddingSeller(false);
@@ -62,10 +63,6 @@ export function BoutiqueDetail({ boutique }: BoutiqueDetailProps) {
         queryClient.invalidateQueries({ queryKey: ["all-users"] });
       }
     },
-    onError: (error: any) => {
-      const msg = error.response?.data?.detail || "Erreur lors de l'affiliation";
-      toast.error(msg);
-    }
   });
 
   const allUsersQuery = useQuery({

@@ -32,15 +32,15 @@ export default function ChangePasswordPage() {
       });
       return data;
     },
+    meta: {
+      errorMessage: "Impossible de modifier le mot de passe",
+      successMessage: "Mot de passe mis à jour avec succès",
+    },
     onSuccess: (updatedUser) => {
-      toast.success("Mot de passe mis à jour avec succès");
       if (tokens) {
         setAuth({ tokens, user: updatedUser });
       }
       router.push("/");
-    },
-    onError: (error: any) => {
-      toast.error(error?.message || error?.response?.data?.detail || "Impossible de modifier le mot de passe");
     },
   });
 

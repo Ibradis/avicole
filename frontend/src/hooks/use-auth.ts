@@ -44,6 +44,7 @@ export function useAuth() {
       const { data } = await apiClient.post<LoginResponse>(API_ROUTES.auth.login, payload);
       return data;
     },
+    meta: { errorMessage: "Identifiants invalides", successMessage: "Connexion réussie" },
     onSuccess: (data) => {
       const payload = decodeJwt(data.access);
       const role = data.user?.role ?? normalizeRole(payload.role) ?? "admin";
@@ -52,21 +53,17 @@ export function useAuth() {
         email: String(payload.email ?? ""),
         role,
         entite_type: payload.entite_type === "ferme" || payload.entite_type === "boutique" ? payload.entite_type : null,
-        entite_id: typeof payload.entite_id === "number" ? payload.entite_id : null
+        entite_id: typeof payload.entite_id === "number" ? payload.entite_id : null,
       };
       setAuth({ tokens: { access: data.access, refresh: data.refresh }, user });
       rememberSession(data);
-      toast.success("Connexion réussie");
-      
+
       if (user.doit_changer_mdp) {
         router.push("/auth/change-password");
       } else {
         router.push("/");
       }
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.detail ?? "Identifiants invalides");
-    }
   });
 
   const register = useMutation({
@@ -74,13 +71,11 @@ export function useAuth() {
       const { data } = await apiClient.post(API_ROUTES.organisations.inscription, payload);
       return data;
     },
-    onSuccess: () => {
-      toast.success("Compte créé. Vous pouvez vous connecter.");
-      router.push("/login");
+    meta: {
+      errorMessage: "L'inscription publique n'est pas encore exposée par l'API.",
+      successMessage: "Compte créé. Vous pouvez vous connecter.",
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.detail ?? "L'inscription publique n'est pas encore exposée par l'API.");
-    }
+    onSuccess: () => router.push("/login"),
   });
 
   const activate = useMutation({
@@ -88,11 +83,8 @@ export function useAuth() {
       const { data } = await apiClient.post(API_ROUTES.auth.activate, payload);
       return data;
     },
-    onSuccess: () => {
-      toast.success("Compte activé");
-      router.push("/login");
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.detail ?? "Activation impossible")
+    meta: { errorMessage: "Activation impossible", successMessage: "Compte activé" },
+    onSuccess: () => router.push("/login"),
   });
 
   const resetPassword = useMutation({
@@ -100,8 +92,10 @@ export function useAuth() {
       const { data } = await apiClient.post(API_ROUTES.auth.resetPassword, payload);
       return data;
     },
-    onSuccess: () => toast.success("Si cet email existe, un lien a été envoyé."),
-    onError: (error: any) => toast.error(error?.response?.data?.detail ?? "Demande impossible")
+    meta: {
+      errorMessage: "Demande impossible",
+      successMessage: "Si cet email existe, un lien a été envoyé.",
+    },
   });
 
   const logout = async () => {
@@ -110,6 +104,7 @@ export function useAuth() {
     } finally {
       forgetSession();
       clearAuthStore();
+      toast.success("Vous êtes déconnecté");
       router.push("/login");
     }
   };

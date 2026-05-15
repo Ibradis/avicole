@@ -132,13 +132,12 @@ function TransferModal({
         date_mouvement: date,
         description: description || `Transfert ${wallet.nom} → ${wallets.find(w => w.id === Number(destId))?.nom}`,
       }),
+    meta: { errorMessage: "Erreur lors du transfert", successMessage: "Transfert effectué avec succès" },
     onSuccess: () => {
-      toast.success("Transfert effectué avec succès");
       onSuccess();
       onClose();
       setMontant(""); setDestId(""); setDescription("");
     },
-    onError: (err: any) => toast.error(err.response?.data?.detail || "Erreur lors du transfert"),
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -232,13 +231,12 @@ function PaySupplierModal({
         montant: Number(montant),
         portefeuille_id: wallet.id,
       }),
+    meta: { errorMessage: "Erreur lors du paiement", successMessage: "Paiement fournisseur enregistré" },
     onSuccess: () => {
-      toast.success("Paiement fournisseur enregistré");
       onSuccess();
       onClose();
       setMontant(""); setAchatsId("");
     },
-    onError: (err: any) => toast.error(err.response?.data?.detail || "Erreur lors du paiement"),
   });
 
   const selectedAchat = achats.find(a => String(a.id) === achatsId);
@@ -331,15 +329,14 @@ function ExpenseModal({
         description: description,
         id_type_charge: typeChargeId ? Number(typeChargeId) : null,
       }),
+    meta: {
+      errorMessage: "Erreur lors de l'enregistrement de la charge",
+      successMessage: "Dépense enregistrée avec succès",
+    },
     onSuccess: () => {
-      toast.success("Dépense enregistrée avec succès");
       onSuccess();
       onClose();
       setMontant(""); setTypeChargeId(""); setDescription("");
-    },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Erreur lors de l'enregistrement de la charge";
-      toast.error(msg);
     },
   });
 

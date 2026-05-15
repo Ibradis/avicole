@@ -286,14 +286,9 @@ export function InvoiceDetailView({ endpoint, id, type, onBack, actions = [], au
     onSuccess: (_, { action }) => {
       toast.success(action.successMessage || "Action effectuée avec succès");
       setActiveAction(null);
-      // Refresh both the detail and the list
       queryClient.invalidateQueries({ queryKey: detailQueryKey });
       queryClient.invalidateQueries({ queryKey: ["resource", endpoint] });
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || err.response?.data?.error || "Une erreur est survenue";
-      toast.error(msg);
-    }
   });
 
   const handleActionClick = (action: ResourceAction) => {

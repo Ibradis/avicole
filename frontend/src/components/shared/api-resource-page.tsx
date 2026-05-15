@@ -545,23 +545,22 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
       if (editing?.id) return apiClient.patch(detailUrl(config.endpoint, editing.id), payload);
       return apiClient.post(config.endpoint, payload);
     },
+    meta: { errorMessage: "Enregistrement refusé par l'API" },
     onSuccess: () => {
       toast.success(editing?.id ? "Modifications enregistrées" : "Élément créé avec succès");
       setIsFormOpen(false);
       setEditing(null);
       refresh();
     },
-    onError: () => toast.error("Enregistrement refusé par l'API")
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (row: ResourceRow) => apiClient.delete(detailUrl(config.endpoint, row.id as number)),
+    meta: { errorMessage: "Suppression indisponible pour cette ressource", successMessage: "Suppression effectuée" },
     onSuccess: () => {
-      toast.success("Suppression effectuée");
       setDeleteTarget(null);
       refresh();
     },
-    onError: () => toast.error("Suppression indisponible pour cette ressource")
   });
 
   const validateMutation = useMutation({
@@ -571,11 +570,8 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
       if (action.method === "patch") return apiClient.patch(action.url, action.payload ?? {});
       return apiClient.post(action.url, action.payload ?? {});
     },
-    onSuccess: () => {
-      toast.success("Validation effectuée");
-      refresh();
-    },
-    onError: () => toast.error("Validation indisponible pour cette ressource")
+    meta: { errorMessage: "Validation indisponible pour cette ressource", successMessage: "Validation effectuée" },
+    onSuccess: () => refresh(),
   });
 
   const customActionMutation = useMutation({
@@ -589,10 +585,6 @@ export function ApiResourcePage({ config }: { config: ResourceConfig }) {
       setActiveAction(null);
       refresh();
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || err.response?.data?.error || "Une erreur est survenue lors de l'action";
-      toast.error(msg);
-    }
   });
 
   const openCreate = () => {
