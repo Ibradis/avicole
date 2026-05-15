@@ -221,14 +221,16 @@ function LinesField({
       
       {lines.map((line, index) => (
         <div key={index} className="flex flex-wrap items-end gap-3 p-3 border rounded-md bg-background relative mt-2">
-          <Button 
-            type="button" 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`Supprimer la ligne ${index + 1}`}
+            title="Supprimer cette ligne"
             className="absolute -right-3 -top-3 h-6 w-6 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={() => handleRemove(index)}
           >
-            <X className="h-3 w-3" />
+            <X className="h-3 w-3" aria-hidden="true" />
           </Button>
           
           {lineConfig.map(subField => {

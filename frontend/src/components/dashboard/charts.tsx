@@ -18,14 +18,24 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatGNF } from "@/lib/utils";
 import type { ChartPoint, StockItem } from "@/types/api";
 
 const COLORS = ["#1B6B35", "#D97706", "#2563EB", "#DC2626"];
 
 function EmptyChart() {
-  return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Aucune donnée API disponible</div>;
+  return (
+    <div className="flex h-full items-center justify-center">
+      <EmptyState
+        icon={BarChart3}
+        title="Aucune donnée à afficher"
+        description="Le graphique se mettra à jour dès que des données seront disponibles."
+      />
+    </div>
+  );
 }
 
 function CurrencyTooltip({ active, payload, label }: any) {

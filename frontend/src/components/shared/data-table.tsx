@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/shared/empty-state";
 
 export function SortHeader({ label }: { label: string }) {
   return (
@@ -119,8 +120,17 @@ export function DataTable<TData>({
                   ))
                 : (
                   <TableRow>
-                    <TableCell colSpan={columns.length} className="h-32 text-center text-muted-foreground">
-                      Aucune donnée disponible
+                    <TableCell colSpan={columns.length} className="p-0">
+                      <EmptyState
+                        title={globalFilter ? "Aucun résultat" : "Aucune donnée disponible"}
+                        description={
+                          globalFilter
+                            ? "Essayez d'ajuster votre recherche ou de retirer les filtres."
+                            : "Les éléments apparaîtront ici dès qu'ils seront créés."
+                        }
+                        actionLabel={globalFilter ? "Effacer la recherche" : undefined}
+                        onAction={globalFilter ? () => setGlobalFilter("") : undefined}
+                      />
                     </TableCell>
                   </TableRow>
                 )}
