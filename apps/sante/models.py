@@ -13,6 +13,7 @@ class Vaccination(models.Model):
     quantite = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     methode_administration = models.CharField(max_length=150, blank=True, null=True)
     intervenant = models.ForeignKey('utilisateurs.Utilisateur', on_delete=models.SET_NULL, null=True, blank=True)
+    veterinaire = models.ForeignKey('veterinaires.Veterinaire', on_delete=models.SET_NULL, null=True, blank=True, related_name='vaccinations')
     observations = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -33,6 +34,7 @@ class Traitement(models.Model):
     date_fin = models.DateField(blank=True, null=True)
     quantite = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     posologie = models.CharField(max_length=200, blank=True, null=True)
+    veterinaire = models.ForeignKey('veterinaires.Veterinaire', on_delete=models.SET_NULL, null=True, blank=True, related_name='traitements')
     observations = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
