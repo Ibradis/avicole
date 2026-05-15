@@ -923,7 +923,8 @@ export const CONFIGS: Record<string, ResourceConfig> = {
   // ---- Administration --------------------------------------------------------
   Utilisateurs: {
     title: "Équipe",
-    description: "Gestion des utilisateurs, invitations et rôles.",
+    description:
+      "Ajoutez un membre : le système génère un mot de passe temporaire et lui envoie ses identifiants par email.",
     endpoint: "utilisateurs/",
     exportBase: "utilisateurs",
     // Cache l'utilisateur connecté de sa propre liste équipe (il se gère via /profile)
@@ -934,11 +935,15 @@ export const CONFIGS: Record<string, ResourceConfig> = {
     },
     columns: [
       { key: "email", label: "Email" },
+      { key: "first_name", label: "Prénom" },
+      { key: "last_name", label: "Nom" },
       { key: "role", label: "Rôle" },
       { key: "telephone", label: "Téléphone" },
       { key: "is_active", label: "Actif", type: "boolean" }
     ],
     fields: [
+      { name: "first_name", label: "Prénom", required: true },
+      { name: "last_name", label: "Nom", required: true },
       { name: "email", label: "Email", type: "email", required: true },
       {
         name: "role",

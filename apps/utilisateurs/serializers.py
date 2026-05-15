@@ -1,9 +1,26 @@
+import secrets
+import string
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from apps.common.serializer_mixins import AvicoleValidationMixin
 
 Utilisateur = get_user_model()
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    """Génère un mot de passe temporaire fort (lettres, chiffres, symboles)."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%&*?"
+    while True:
+        pwd = "".join(secrets.choice(alphabet) for _ in range(length))
+        if (
+            any(c.islower() for c in pwd)
+            and any(c.isupper() for c in pwd)
+            and any(c.isdigit() for c in pwd)
+            and any(c in "!@#$%&*?" for c in pwd)
+        ):
+            return pwd
 
 class UtilisateurReadSerializer(AvicoleValidationMixin, serializers.ModelSerializer):
     class Meta:
@@ -39,13 +56,22 @@ class UtilisateurWriteSerializer(AvicoleValidationMixin, serializers.ModelSerial
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
+        password_was_generated = False
         if not password:
-            password = "1234"
-            validated_data['doit_changer_mdp'] = True
-        
+            password = generate_temporary_password()
+            password_was_generated = True
+
+        # Un mot de passe défini par l'administrateur reste considéré temporaire :
+        # l'utilisateur invité doit le changer à sa première connexion.
+        validated_data['doit_changer_mdp'] = True
+
         user = super().create(validated_data)
         user.set_password(password)
         user.save()
+
+        # Exposé pour la vue afin d'envoyer l'email d'invitation. Non persisté.
+        user._temp_password = password
+        user._temp_password_generated = password_was_generated
         return user
 
     def update(self, instance, validated_data):

@@ -10,7 +10,9 @@ from drf_spectacular.utils import extend_schema
 from django.conf import settings
 from django.utils import timezone
 
-from .emails import send_registration_confirmation
+from django.db import transaction
+
+from .emails import send_account_invitation, send_registration_confirmation
 from .models import EmailConfirmation
 from .serializers import (
     UtilisateurReadSerializer, UtilisateurWriteSerializer,
@@ -335,7 +337,24 @@ class UtilisateurListView(APIView):
         serializer = UtilisateurWriteSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save(organisation=request.user.organisation)
-        return Response(UtilisateurReadSerializer(user).data, status=status.HTTP_201_CREATED)
+
+        # Envoi de l'email d'invitation avec les identifiants temporaires
+        temp_password = getattr(user, "_temp_password", None)
+        email_sent = False
+        if temp_password:
+            invited_by = request.user
+            try:
+                transaction.on_commit(
+                    lambda: send_account_invitation(user, temp_password, invited_by)
+                )
+                email_sent = True
+            except Exception:
+                # L'email ne doit pas bloquer la création du compte ; on log silencieusement.
+                email_sent = False
+
+        response = UtilisateurReadSerializer(user).data
+        response["invitation_email_sent"] = email_sent
+        return Response(response, status=status.HTTP_201_CREATED)
 
 class UtilisateurDetailView(APIView):
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]

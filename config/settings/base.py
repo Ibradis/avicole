@@ -195,6 +195,9 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 )
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
+# URL du frontend (utilisée dans les emails)
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:13000')
+
 # Confirmation d'inscription
 EMAIL_CONFIRMATION_TTL_MINUTES = int(os.environ.get('EMAIL_CONFIRMATION_TTL_MINUTES', '15'))
 EMAIL_CONFIRMATION_MAX_ATTEMPTS = int(os.environ.get('EMAIL_CONFIRMATION_MAX_ATTEMPTS', '5'))
