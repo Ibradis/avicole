@@ -61,34 +61,36 @@ export default function ProfilePage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8 lg:px-8">
+    <div className="w-full pb-10">
       <ProfileHero user={user} />
-      <Tabs defaultValue={initialTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 sm:w-auto">
-          <TabsTrigger value="info" className="gap-2">
-            <UserCog className="h-4 w-4" aria-hidden="true" />
-            <span>Informations</span>
-          </TabsTrigger>
-          <TabsTrigger value="security" className="gap-2">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            <span>Sécurité</span>
-          </TabsTrigger>
-          <TabsTrigger value="prefs" className="gap-2">
-            <Monitor className="h-4 w-4" aria-hidden="true" />
-            <span>Préférences</span>
-          </TabsTrigger>
-        </TabsList>
+      <div className="mx-auto -mt-16 w-full max-w-7xl space-y-6 px-4 lg:px-8">
+        <Tabs defaultValue={initialTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+            <TabsTrigger value="info" className="gap-2">
+              <UserCog className="h-4 w-4" aria-hidden="true" />
+              <span>Informations</span>
+            </TabsTrigger>
+            <TabsTrigger value="security" className="gap-2">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              <span>Sécurité</span>
+            </TabsTrigger>
+            <TabsTrigger value="prefs" className="gap-2">
+              <Monitor className="h-4 w-4" aria-hidden="true" />
+              <span>Préférences</span>
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="info">
-          <InfoTab user={user} setAuth={setAuth} tokens={tokens} queryClient={queryClient} />
-        </TabsContent>
-        <TabsContent value="security">
-          <SecurityTab userId={user.id} />
-        </TabsContent>
-        <TabsContent value="prefs">
-          <PreferencesTab theme={theme} resolvedTheme={resolvedTheme} setTheme={setTheme} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="info">
+            <InfoTab user={user} setAuth={setAuth} tokens={tokens} queryClient={queryClient} />
+          </TabsContent>
+          <TabsContent value="security">
+            <SecurityTab userId={user.id} />
+          </TabsContent>
+          <TabsContent value="prefs">
+            <PreferencesTab theme={theme} resolvedTheme={resolvedTheme} setTheme={setTheme} />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
@@ -99,45 +101,66 @@ function ProfileHero({ user }: { user: User }) {
   const entiteLabel = user.entite_type === "ferme" ? "Ferme" : user.entite_type === "boutique" ? "Boutique" : null;
 
   return (
-    <Card className="overflow-hidden">
+    <section className="relative overflow-hidden bg-[#111827] text-white">
       <div
-        className="h-28 w-full bg-gradient-to-br from-primary via-primary/70 to-accent"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(27,107,53,0.35),_transparent_55%),radial-gradient(circle_at_bottom_right,_rgba(217,119,6,0.18),_transparent_60%)]"
         aria-hidden="true"
       />
-      <CardContent className="-mt-12 flex flex-col gap-4 px-6 pb-6 sm:flex-row sm:items-end sm:gap-6">
-        <Avatar className="h-24 w-24 shrink-0 ring-4 ring-card">
-          <AvatarFallback className="text-2xl">{initials(user)}</AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-1 flex-col gap-1 pt-2 sm:pb-1">
-          <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{fullName(user)}</h1>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="truncate">{user.email}</span>
-            </span>
-            {entiteLabel ? (
+      <div
+        className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl"
+        aria-hidden="true"
+      />
+      <div className="relative mx-auto w-full max-w-7xl px-4 pb-28 pt-10 lg:px-8 lg:pb-32 lg:pt-12">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/55">Profil</p>
+        <div className="mt-4 flex flex-col gap-6 sm:flex-row sm:items-end">
+          <Avatar className="h-24 w-24 shrink-0 ring-4 ring-white/15 sm:h-28 sm:w-28">
+            <AvatarFallback className="bg-white/10 text-2xl font-semibold text-white sm:text-3xl">
+              {initials(user)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+              {fullName(user)}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
               <span className="inline-flex items-center gap-1.5">
-                <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-                {entiteLabel}
-                {user.entite_id ? ` · #${user.entite_id}` : null}
+                <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="truncate">{user.email}</span>
               </span>
-            ) : null}
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {roleLabel ? <Badge>{roleLabel}</Badge> : null}
-            {user.is_active === false ? (
-              <Badge variant="destructive">Compte inactif</Badge>
-            ) : (
-              <Badge variant="success">
-                <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden="true" />
-                Actif
-              </Badge>
-            )}
-            {user.doit_changer_mdp ? <Badge variant="warning">Mot de passe à changer</Badge> : null}
+              {entiteLabel ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  {entiteLabel}
+                  {user.entite_id ? ` · #${user.entite_id}` : null}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {roleLabel ? (
+                <span className="inline-flex items-center rounded-md border border-white/15 bg-white/10 px-2 py-1 text-xs font-medium text-white">
+                  {roleLabel}
+                </span>
+              ) : null}
+              {user.is_active === false ? (
+                <span className="inline-flex items-center gap-1 rounded-md border border-red-400/30 bg-red-500/20 px-2 py-1 text-xs font-medium text-red-100">
+                  Compte inactif
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-500/15 px-2 py-1 text-xs font-medium text-emerald-100">
+                  <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                  Actif
+                </span>
+              )}
+              {user.doit_changer_mdp ? (
+                <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-100">
+                  Mot de passe à changer
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
