@@ -15,6 +15,7 @@ import { DataTable, SortHeader } from "@/components/shared/data-table";
 import { ExportButtons } from "@/components/shared/export-buttons";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { PrintableDocument, buildOrganisation } from "@/components/shared/printable-document";
 import { apiClient } from "@/lib/axios";
 import { API_ROUTES } from "@/lib/api-routes";
 import { formatDateFr, formatGNF, unwrapResults } from "@/lib/utils";
@@ -109,20 +110,66 @@ function displayCell(row: ResourceRow, column: ResourceColumn) {
   return String(value);
 }
 
+function plainCellValue(row: ResourceRow, column: ResourceColumn): string {
+  const value = row[column.key];
+  if (column.type === "date") return formatDateFr(value);
+  if (column.type === "money") return formatGNF(value);
+  if (column.type === "boolean") return value ? "Oui" : "Non";
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+}
+
 function PrintableRecord({ title, row, columns }: { title: string; row: ResourceRow; columns: ResourceColumn[] }) {
+  const user = useAuthStore((state) => state.user);
+  const docType = title.toUpperCase();
+
+  const reference = (() => {
+    const raw = row.reference ?? row.code ?? row.numero ?? row.id;
+    return raw ? `#${raw}` : "—";
+  })();
+
+  const dateValue = row.date ?? row.date_creation ?? row.created_at ?? row.date_vente ?? row.date_achat;
+  const status = row.statut ?? row.status;
+
+  const moneyColumn = columns.find((c) => c.type === "money");
+  const moneyValue = moneyColumn ? Number(row[moneyColumn.key] ?? 0) : null;
+
+  const partnerName =
+    row.client_nom ||
+    row.fournisseur_nom ||
+    row.destinataire_nom ||
+    row.partenaire_nom ||
+    row.nom ||
+    row.libelle ||
+    null;
+
+  const meta = columns
+    .slice(0, 8)
+    .map((col) => ({ label: col.label, value: plainCellValue(row, col) }));
+
+  const totals = moneyValue != null
+    ? [{ label: "TOTAL", value: formatGNF(moneyValue), strong: true }]
+    : [];
+
   return (
     <div className="hidden print:block">
-      <h1 className="mb-4 text-2xl font-semibold">{title}</h1>
-      <table className="w-full border-collapse text-sm">
-        <tbody>
-          {columns.map((col) => (
-            <tr key={col.key}>
-              <th className="border px-3 py-2 text-left">{col.label}</th>
-              <td className="border px-3 py-2">{displayCell(row, col)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <PrintableDocument
+        docType={docType}
+        reference={reference}
+        date={dateValue ? formatDateFr(dateValue) : undefined}
+        status={status ? String(status).toUpperCase() : undefined}
+        organisation={buildOrganisation(user ?? undefined)}
+        party={{ label: "Concerne", name: partnerName ?? title }}
+        meta={meta}
+        lines={[]}
+        totals={totals}
+        notes={row.observations || row.description || row.commentaire || undefined}
+        footer={
+          <span>
+            Document généré le {formatDateFr(new Date().toISOString())} · Avicole ERP
+          </span>
+        }
+      />
     </div>
   );
 }
