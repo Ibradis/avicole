@@ -7,10 +7,15 @@ from django.contrib.auth import authenticate, get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from django.conf import settings
+from django.utils import timezone
+
+from .emails import send_registration_confirmation
+from .models import EmailConfirmation
 from .serializers import (
     UtilisateurReadSerializer, UtilisateurWriteSerializer,
     PasswordResetSerializer, InviteUserSerializer, ActivateAccountSerializer,
-    LoginSerializer
+    LoginSerializer, ConfirmRegistrationSerializer, ResendConfirmationSerializer,
 )
 from .permissions import IsOrganisationAdmin, IsOwnerOrAdmin
 
@@ -135,6 +140,150 @@ class ActivateAccountView(APIView):
         serializer = ActivateAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response({"detail": "Compte activé avec succès."}, status=status.HTTP_200_OK)
+
+
+def _get_pending_user(email: str):
+    return Utilisateur.objects.filter(email__iexact=email).first()
+
+
+class ConfirmRegistrationView(APIView):
+    """Valide le code reçu par email après inscription et active le compte."""
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Confirmer l'inscription",
+        description="Vérifie le code à 6 chiffres reçu par email et active le compte. Retourne des tokens JWT.",
+        request=ConfirmRegistrationSerializer,
+        responses={200: dict},
+    )
+    def post(self, request):
+        serializer = ConfirmRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"].lower()
+        code = serializer.validated_data["code"]
+
+        user = _get_pending_user(email)
+        if user is None:
+            return Response(
+                {"detail": "Aucun compte trouvé pour cet email."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.is_active:
+            return Response(
+                {"detail": "Ce compte est déjà confirmé. Connectez-vous."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        confirmation = (
+            EmailConfirmation.objects
+            .filter(user=user, purpose=EmailConfirmation.PURPOSE_REGISTRATION, used_at__isnull=True)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if confirmation is None:
+            return Response(
+                {"detail": "Aucun code actif. Demandez un nouveau code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if confirmation.is_expired:
+            return Response(
+                {"detail": "Le code a expiré. Demandez un nouveau code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        max_attempts = getattr(settings, "EMAIL_CONFIRMATION_MAX_ATTEMPTS", 5)
+        if confirmation.attempts >= max_attempts:
+            confirmation.mark_used()
+            return Response(
+                {"detail": "Trop de tentatives. Demandez un nouveau code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if confirmation.code != code:
+            confirmation.attempts += 1
+            confirmation.save(update_fields=["attempts"])
+            remaining = max_attempts - confirmation.attempts
+            return Response(
+                {
+                    "detail": "Code incorrect.",
+                    "remaining_attempts": max(remaining, 0),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Code valide → activer + générer tokens
+        confirmation.mark_used()
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+        tokens = get_tokens_for_user(user)
+
+        return Response(
+            {
+                **tokens,
+                "user": UtilisateurReadSerializer(user).data,
+                "detail": "Compte confirmé.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ResendConfirmationView(APIView):
+    """Régénère un code de confirmation et renvoie l'email."""
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Renvoyer un code de confirmation",
+        description="Génère un nouveau code à 6 chiffres et l'envoie par email. Soumis à un cooldown.",
+        request=ResendConfirmationSerializer,
+    )
+    def post(self, request):
+        serializer = ResendConfirmationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"].lower()
+
+        user = _get_pending_user(email)
+        # Ne pas révéler si l'email existe — retour neutre.
+        generic_response = Response(
+            {"detail": "Si un compte est en attente, un nouveau code a été envoyé."},
+            status=status.HTTP_200_OK,
+        )
+
+        if user is None or user.is_active:
+            return generic_response
+
+        cooldown_seconds = getattr(settings, "EMAIL_CONFIRMATION_RESEND_COOLDOWN_SECONDS", 60)
+        last = (
+            EmailConfirmation.objects
+            .filter(user=user, purpose=EmailConfirmation.PURPOSE_REGISTRATION)
+            .order_by("-created_at")
+            .first()
+        )
+        if last is not None:
+            elapsed = (timezone.now() - last.created_at).total_seconds()
+            if elapsed < cooldown_seconds:
+                wait = int(cooldown_seconds - elapsed)
+                return Response(
+                    {
+                        "detail": f"Veuillez patienter {wait} seconde(s) avant de redemander un code.",
+                        "retry_after": wait,
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+
+        confirmation = EmailConfirmation.issue(user)
+        try:
+            send_registration_confirmation(user, confirmation)
+        except Exception:
+            return Response(
+                {"detail": "Impossible d'envoyer l'email. Réessayez plus tard."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return generic_response
 
 class UtilisateurListView(APIView):
     permission_classes = [IsAuthenticated]

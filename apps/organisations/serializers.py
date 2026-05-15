@@ -4,6 +4,8 @@ from django.utils.text import slugify
 from rest_framework import serializers
 
 from apps.ferme.models import Ferme
+from apps.utilisateurs.emails import send_registration_confirmation
+from apps.utilisateurs.models import EmailConfirmation
 from .models import Organisation
 
 Utilisateur = get_user_model()
@@ -73,13 +75,21 @@ class OrganisationInscriptionSerializer(serializers.Serializer):
             role="admin",
             telephone=telephone or None,
             organisation=organisation,
-            is_active=True,
+            is_active=False,  # activation après confirmation email
         )
 
         organisation.id_proprietaire = user
         organisation.save(update_fields=["id_proprietaire"])
 
-        return {"organisation": organisation, "ferme": ferme, "user": user}
+        confirmation = EmailConfirmation.issue(user)
+        transaction.on_commit(lambda: send_registration_confirmation(user, confirmation))
+
+        return {
+            "organisation": organisation,
+            "ferme": ferme,
+            "user": user,
+            "confirmation": confirmation,
+        }
 
 
 class OrganisationReadSerializer(serializers.ModelSerializer):

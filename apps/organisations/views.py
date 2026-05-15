@@ -1,20 +1,28 @@
-from rest_framework import status, generics
+import logging
+
+from rest_framework import generics, status
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 
-from apps.utilisateurs.serializers import UtilisateurReadSerializer
-from apps.utilisateurs.views import get_tokens_for_user
-from .serializers import OrganisationInscriptionSerializer, OrganisationReadSerializer
+from apps.utilisateurs.permissions import IsOrganisationAdminOrReadOnly
 from .models import Organisation
+from .serializers import OrganisationInscriptionSerializer, OrganisationReadSerializer
+
+logger = logging.getLogger(__name__)
+
 
 class OrganisationInscriptionView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
         summary="Inscription publique SaaS",
-        description="Crée une organisation, sa ferme initiale et le compte administrateur.",
+        description=(
+            "Crée une organisation, sa ferme initiale et le compte administrateur "
+            "(inactif), puis envoie un code de confirmation par email."
+        ),
         request=OrganisationInscriptionSerializer,
         responses={201: dict},
     )
@@ -23,24 +31,17 @@ class OrganisationInscriptionView(APIView):
         serializer.is_valid(raise_exception=True)
         created = serializer.save()
         user = created["user"]
-        tokens = get_tokens_for_user(user)
 
         return Response(
             {
-                **tokens,
-                "organisation": OrganisationReadSerializer(created["organisation"]).data,
-                "ferme": {"id": created["ferme"].id, "nom": created["ferme"].nom},
-                "user": UtilisateurReadSerializer(user).data,
+                "detail": "Un code de confirmation a été envoyé à votre email.",
+                "email": user.email,
+                "organisation_nom": created["organisation"].nom,
+                "expires_at": created["confirmation"].expires_at.isoformat(),
             },
             status=status.HTTP_201_CREATED,
         )
 
-from rest_framework.exceptions import NotFound
-import logging
-
-from apps.utilisateurs.permissions import IsOrganisationAdminOrReadOnly
-
-logger = logging.getLogger(__name__)
 
 class OrganisationDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = OrganisationReadSerializer

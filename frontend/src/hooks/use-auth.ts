@@ -41,8 +41,19 @@ export function useAuth() {
 
   const login = useMutation({
     mutationFn: async (payload: LoginPayload) => {
-      const { data } = await apiClient.post<LoginResponse>(API_ROUTES.auth.login, payload);
-      return data;
+      try {
+        const { data } = await apiClient.post<LoginResponse>(API_ROUTES.auth.login, payload);
+        return data;
+      } catch (err: any) {
+        // Compte inactif → orienter vers la page de confirmation
+        if (err?.response?.status === 403) {
+          router.push(`/inscription/confirmer?email=${encodeURIComponent(payload.email)}`);
+          throw new Error(
+            "Votre compte n'est pas encore confirmé. Saisissez le code reçu par email."
+          );
+        }
+        throw err;
+      }
     },
     meta: { errorMessage: "Identifiants invalides", successMessage: "Connexion réussie" },
     onSuccess: (data) => {
@@ -68,19 +79,35 @@ export function useAuth() {
 
   const register = useMutation({
     mutationFn: async (payload: RegisterPayload) => {
-      const { data } = await apiClient.post<
-        LoginResponse & { organisation?: { nom: string }; ferme?: { id: number; nom: string } }
-      >(API_ROUTES.organisations.inscription, payload);
+      const { data } = await apiClient.post<{
+        detail: string;
+        email: string;
+        organisation_nom: string;
+        expires_at: string;
+      }>(API_ROUTES.organisations.inscription, payload);
       return data;
     },
     meta: {
       errorMessage: "Impossible de créer le compte. Vérifiez les informations saisies.",
-      successMessage: "Bienvenue dans votre espace Avicole ERP !",
+      successMessage: "Compte créé — un code de confirmation vient d'être envoyé par email.",
     },
     onSuccess: (data) => {
-      // Auto-login: backend returns access + refresh + user just like /auth/connexion
+      const email = data?.email ?? "";
+      router.push(`/inscription/confirmer?email=${encodeURIComponent(email)}`);
+    },
+  });
+
+  const confirmRegistration = useMutation({
+    mutationFn: async (payload: { email: string; code: string }) => {
+      const { data } = await apiClient.post<LoginResponse>(API_ROUTES.auth.confirmRegistration, payload);
+      return data;
+    },
+    meta: {
+      errorMessage: "Code invalide ou expiré",
+      successMessage: "Compte confirmé. Bienvenue !",
+    },
+    onSuccess: (data) => {
       if (!data?.access || !data?.refresh || !data?.user) {
-        // Fallback: backend did not return tokens for some reason.
         router.push("/login");
         return;
       }
@@ -97,6 +124,20 @@ export function useAuth() {
       setAuth({ tokens: { access: data.access, refresh: data.refresh }, user });
       rememberSession({ access: data.access, refresh: data.refresh });
       router.push("/");
+    },
+  });
+
+  const resendConfirmation = useMutation({
+    mutationFn: async (payload: { email: string }) => {
+      const { data } = await apiClient.post<{ detail: string; retry_after?: number }>(
+        API_ROUTES.auth.resendCode,
+        payload
+      );
+      return data;
+    },
+    meta: {
+      errorMessage: "Impossible de renvoyer le code",
+      successMessage: "Un nouveau code vient d'être envoyé.",
     },
   });
 
@@ -131,5 +172,5 @@ export function useAuth() {
     }
   };
 
-  return { login, register, activate, resetPassword, logout };
+  return { login, register, confirmRegistration, resendConfirmation, activate, resetPassword, logout };
 }

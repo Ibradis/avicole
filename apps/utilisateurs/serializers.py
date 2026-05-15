@@ -90,3 +90,12 @@ class ActivateAccountSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+
+
+class ConfirmRegistrationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.RegexField(regex=r"^\d{6}$", error_messages={"invalid": "Le code doit contenir 6 chiffres."})
+
+
+class ResendConfirmationSerializer(serializers.Serializer):
+    email = serializers.EmailField()

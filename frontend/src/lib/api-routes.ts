@@ -5,7 +5,9 @@ export const API_ROUTES = {
     logout: "auth/deconnexion/",
     invite: "auth/inviter/",
     activate: "auth/activer/",
-    resetPassword: "auth/mot-de-passe/reinitialiser/"
+    resetPassword: "auth/mot-de-passe/reinitialiser/",
+    confirmRegistration: "auth/confirmer-inscription/",
+    resendCode: "auth/renvoyer-code/"
   },
   organisations: {
     inscription: "organisations/inscription/"
