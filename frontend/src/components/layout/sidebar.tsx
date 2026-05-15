@@ -7,11 +7,19 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
 import { NAV_ITEMS } from "./nav-items";
 import { ROLE_LABELS } from "@/types/roles";
-import { UserCircle2 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/axios";
 import { API_ROUTES } from "@/lib/api-routes";
 import { formatGNF } from "@/lib/utils";
+
+function sidebarInitials(user: { first_name?: string; last_name?: string; email: string }): string {
+  const first = user.first_name?.trim()[0];
+  const last = user.last_name?.trim()[0];
+  if (first && last) return `${first}${last}`.toUpperCase();
+  if (first) return first.toUpperCase();
+  return (user.email.split("@")[0] ?? user.email).slice(0, 2).toUpperCase();
+}
 
 interface SidebarContentProps {
   onNavigate?: () => void;
@@ -58,7 +66,9 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
       {user && (
         <div className="shrink-0 border-t border-white/10 p-4">
           <div className="flex items-center gap-3">
-            <UserCircle2 className="h-8 w-8 text-white/55" aria-hidden="true" />
+            <Avatar className="h-10 w-10 ring-2 ring-white/15">
+              <AvatarFallback className="bg-white/10 text-white">{sidebarInitials(user)}</AvatarFallback>
+            </Avatar>
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-medium text-white">
                 {user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email}
