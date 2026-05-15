@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DataTable } from "@/components/shared/data-table";
 import { ResourceForm, type ResourceField } from "@/components/shared/api-resource-page";
 import { apiClient } from "@/lib/axios";
+import { API_ROUTES } from "@/lib/api-routes";
 import { unwrapResults, formatGNF, formatDateFr } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -96,7 +97,7 @@ export function BoutiqueDetail({ boutique }: BoutiqueDetailProps) {
   const salesQuery = useQuery({
     queryKey: ["ventes", boutique.id],
     queryFn: async () => {
-      const response = await apiClient.get(`/ventes/?entite_type=boutique&entite_id=${boutique.id}`);
+      const response = await apiClient.get(`/${API_ROUTES.ventes}?entite_type=boutique&entite_id=${boutique.id}`);
       return unwrapResults(response.data);
     }
   });
@@ -105,7 +106,7 @@ export function BoutiqueDetail({ boutique }: BoutiqueDetailProps) {
   const stocksQuery = useQuery({
     queryKey: ["stocks", boutique.id],
     queryFn: async () => {
-      const response = await apiClient.get(`/stocks/?entite_type=boutique&entite_id=${boutique.id}`);
+      const response = await apiClient.get(`/${API_ROUTES.stock.list}?entite_type=boutique&entite_id=${boutique.id}`);
       return unwrapResults(response.data);
     }
   });
